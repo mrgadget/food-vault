@@ -121,31 +121,48 @@ alter table recipe_vault.steps             enable row level security;
 alter table recipe_vault.sachet_expansions enable row level security;
 alter table recipe_vault.recipe_images     enable row level security;
 
+-- Two details in every policy below:
+--
+--   `to authenticated` — anon is already stopped by holding no table grant,
+--   but naming the role keeps the boundary from resting on that alone. A
+--   future grant to anon for some unrelated reason would otherwise open
+--   every table at once.
+--
+--   `(select auth.uid())` — the subselect lets Postgres evaluate the call
+--   once per query as an InitPlan rather than once per scanned row. It
+--   matters most on the child tables, where it sits inside an EXISTS.
+
 create policy "own recipes" on recipe_vault.recipes
-  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+  for all to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
 
 create policy "own ingredients" on recipe_vault.ingredients
-  for all using (exists (
+  for all to authenticated
+  using (exists (
     select 1 from recipe_vault.recipes r
-    where r.id = ingredients.recipe_id and r.user_id = auth.uid()
+    where r.id = ingredients.recipe_id and r.user_id = (select auth.uid())
   ));
 
 create policy "own steps" on recipe_vault.steps
-  for all using (exists (
+  for all to authenticated
+  using (exists (
     select 1 from recipe_vault.recipes r
-    where r.id = steps.recipe_id and r.user_id = auth.uid()
+    where r.id = steps.recipe_id and r.user_id = (select auth.uid())
   ));
 
 create policy "own sachet expansions" on recipe_vault.sachet_expansions
-  for all using (exists (
+  for all to authenticated
+  using (exists (
     select 1 from recipe_vault.recipes r
-    where r.id = sachet_expansions.recipe_id and r.user_id = auth.uid()
+    where r.id = sachet_expansions.recipe_id and r.user_id = (select auth.uid())
   ));
 
 create policy "own recipe images" on recipe_vault.recipe_images
-  for all using (exists (
+  for all to authenticated
+  using (exists (
     select 1 from recipe_vault.recipes r
-    where r.id = recipe_images.recipe_id and r.user_id = auth.uid()
+    where r.id = recipe_images.recipe_id and r.user_id = (select auth.uid())
   ));
 
 -- Grants. RLS decides which ROWS a role may touch; grants decide whether the
@@ -176,7 +193,8 @@ on conflict (id) do nothing;
 -- shared table, and a policy that forgot `bucket_id` would grant access to
 -- every other app's files.
 create policy "own recipe-vault image objects" on storage.objects
-  for all using (
+  for all to authenticated
+  using (
     bucket_id = 'recipe-vault-images'
-    and (storage.foldername(name))[1] = auth.uid()::text
+    and (storage.foldername(name))[1] = (select auth.uid())::text
   );

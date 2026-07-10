@@ -183,6 +183,23 @@ export async function listRecipes(supabase: ServerClient): Promise<RecipeSummary
 }
 
 /**
+ * Existing recipes imported from the same URL — so a re-import can offer to
+ * replace or skip rather than silently duplicating. RLS scopes it to the user.
+ * More than one can come back if duplicates were made before this check existed.
+ */
+export async function findRecipesBySourceUrl(
+  supabase: ServerClient,
+  sourceUrl: string,
+): Promise<{ id: string; title: string }[]> {
+  const { data, error } = await supabase
+    .from("recipes")
+    .select("id, title")
+    .eq("source_url", sourceUrl);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as { id: string; title: string }[];
+}
+
+/**
  * Delete a recipe, its children, and the images it owns.
  *
  * The rows go by cascade. The storage objects do not — nothing in Postgres

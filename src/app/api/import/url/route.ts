@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { extractFromSource } from "@/lib/ai/extract";
 import { matchPhotosToSteps } from "@/lib/ai/match-photos";
-import { saveRecipe, type SavedImage } from "@/lib/db/recipes";
+import { deleteRecipe, findRecipesBySourceUrl, saveRecipe, type SavedImage } from "@/lib/db/recipes";
 import { fetchImage, fetchSource, type Source } from "@/lib/import/fetch-page";
 import { extractHeroImage, extractStepPhotos, prepareHeroJpeg } from "@/lib/import/pdf-images";
 import { streamJob, type Progress } from "@/lib/job-stream";
@@ -23,6 +23,22 @@ export async function POST(request: Request) {
   if (!url) {
     return NextResponse.json({ error: "A url is required." }, { status: 400 });
   }
+  const onExisting: unknown = body?.onExisting;
+
+  // Re-importing the same link would otherwise silently make a second copy.
+  // Before doing any slow work, check — and let the client decide.
+  const existing = await findRecipesBySourceUrl(supabase, url);
+  if (existing.length > 0 && onExisting !== "replace" && onExisting !== "skip") {
+    return NextResponse.json({
+      duplicate: { title: existing[0].title, count: existing.length },
+    });
+  }
+  if (existing.length > 0 && onExisting === "skip") {
+    return NextResponse.json({ skipped: true, id: existing[0].id });
+  }
+  // On replace, the new recipe is built first and the old ones removed only
+  // after it lands, so a failed import never loses the copy you already had.
+  const replacedIds = onExisting === "replace" ? existing.map((recipe) => recipe.id) : [];
 
   // Everything above fails fast with a real status code. Everything below is
   // slow, so it streams — see lib/job-stream.
@@ -39,7 +55,10 @@ export async function POST(request: Request) {
         : await webHero(supabase, auth.user.id, source, progress);
 
     progress("Saving…");
-    return saveRecipe(supabase, auth.user.id, recipe, { source: "url", sourceUrl: url }, images);
+    const id = await saveRecipe(supabase, auth.user.id, recipe, { source: "url", sourceUrl: url }, images);
+
+    for (const oldId of replacedIds) await deleteRecipe(supabase, oldId);
+    return id;
   });
 }
 

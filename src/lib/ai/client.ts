@@ -1,6 +1,26 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-export const MODEL = "claude-opus-4-8";
+/**
+ * Overridable so a bulk import can trade accuracy for cost without a deploy.
+ *
+ * Measured on one HelloFresh card, every model from Haiku 4.5 up produced the
+ * same ingredients, the same steps, and a correct sachet breakdown — the prompt
+ * carries the work. Latency is ~20s on all of them, because it is dominated by
+ * ingesting a 6.6MB PDF rather than by thinking. The whole spread is 8 cents to
+ * 1 cent per import.
+ *
+ * Opus stays the default anyway. The cards that separate these models are the
+ * awkward ones — a two-and-four-serving layout where the wrong column is still
+ * a plausible recipe — and a wrong quantity is a failure nobody notices until
+ * they are cooking.
+ */
+export const MODEL = process.env.EXTRACTION_MODEL ?? "claude-opus-4-8";
+export const EFFORT = (process.env.EXTRACTION_EFFORT ?? "high") as
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh"
+  | "max";
 
 export class MissingApiKey extends Error {}
 

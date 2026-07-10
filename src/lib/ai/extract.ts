@@ -1,7 +1,7 @@
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type Anthropic from "@anthropic-ai/sdk";
 
-import { anthropic, MODEL } from "./client";
+import { anthropic, EFFORT, MODEL } from "./client";
 import {
   EXTRACTION_SYSTEM_PROMPT,
   PDF_USER_PROMPT,
@@ -29,7 +29,7 @@ async function extract(content: Anthropic.ContentBlockParam[]): Promise<Recipe> 
     // transcription is not.
     thinking: { type: "adaptive" },
     output_config: {
-      effort: "high",
+      effort: EFFORT,
       format: zodOutputFormat(recipeSchema),
     },
     messages: [{ role: "user", content }],

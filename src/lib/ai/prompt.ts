@@ -26,7 +26,9 @@ A source with no such hierarchy — most recipe websites — has no minor steps.
 
 6. Custom options. Meal-kit cards print a band of paid substitutions and add-ons — "CUSTOM OPTIONS", "Upgrade your protein", "Add bacon", a swap from beef mince to chicken breast. Extract the base recipe only. Never add an ingredient, a quantity, or a step that exists only inside that band, and never adjust the base recipe's quantities to suit one of its variants. Do not mention the options in aiNotes; a variation the cook did not order is not a gap in the recipe.
 
-7. aiNotes. Two or three sentences, addressed to the cook, naming what you inferred and why. If you inferred nothing, use null. Say nothing about the custom options; the cook did not order them, and their absence is not something you inferred.
+7. Emphasis. Recipe cards set the things a cook must not misread in bold — ingredient names, quantities, temperatures, timings. Where the source bolds text inside a step, wrap that text in double asterisks: "Cook the **beef & pork mince**, breaking it up, until browned, **4-5 minutes**." Mark only what the source itself bolds. Do not bold anything in a source that uses no emphasis, and do not use asterisks for any other purpose. A major step's heading is already displayed prominently, so leave it unmarked.
+
+8. aiNotes. Two or three sentences, addressed to the cook, naming what you inferred and why. If you inferred nothing, use null. Say nothing about the custom options; the cook did not order them, and their absence is not something you inferred.
 
 Do not editorialize about the recipe. Do not add commentary, serving suggestions, or nutrition information that is not in the source.`;
 

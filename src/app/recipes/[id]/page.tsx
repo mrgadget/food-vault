@@ -162,7 +162,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
                   />
                 )}
                 <p className={block.minors.length > 0 ? "font-medium" : undefined}>
-                  {block.major.text}
+                  <Emphasised text={block.major.text} />
                   {block.major.inferred && <InferredBadge />}
                 </p>
                 {block.minors.length > 0 && (
@@ -173,7 +173,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
                           •
                         </span>
                         <span>
-                          {minor.text}
+                          <Emphasised text={minor.text} />
                           {minor.inferred && <InferredBadge />}
                         </span>
                       </li>
@@ -210,6 +210,26 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
         </footer>
       )}
     </article>
+  );
+}
+
+/**
+ * Steps carry the source's emphasis as `**bold**` markers.
+ *
+ * They are rendered by splitting the string, never by injecting markup: the
+ * text came from a web page we fetched, and this app exists to import from
+ * places we do not control. An unpaired or malformed marker degrades to a
+ * literal asterisk, which is a great deal better than an escape hatch.
+ */
+function Emphasised({ text }: { text: string }) {
+  const parts = text.split(/\*\*(.+?)\*\*/g);
+  return (
+    <>
+      {parts.map((part, index) =>
+        // Odd indices are the captured groups — the bolded runs.
+        index % 2 === 1 ? <strong key={index} className="font-semibold">{part}</strong> : part,
+      )}
+    </>
   );
 }
 

@@ -22,6 +22,11 @@ export const PHOTO_USER_PROMPT = `These photographs are of a single recipe — t
 
 If text is cut off or illegible, extract what you can read and note the gap in aiNotes rather than guessing at the missing words.`;
 
+export const PDF_USER_PROMPT = (url: string) =>
+  `The document above is a recipe card, downloaded from ${url}. Read every page before extracting: a meal-kit card puts the ingredient list and the numbered method on different pages, and the pantry items it assumes you already own are usually printed separately from the ingredients it ships you.
+
+Spice blends on these cards often print their own component list in small type. Read it if it is there, and prefer it over your own knowledge of the blend.`;
+
 export const URL_USER_PROMPT = (url: string, content: string) =>
   `Extract the recipe from this web page. Source URL: ${url}
 

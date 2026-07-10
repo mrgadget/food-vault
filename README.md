@@ -2,7 +2,7 @@
 
 Collect recipes from anywhere and read them back in a form you can actually cook from.
 
-- **Import from a URL.** Reads the page, prefers its `schema.org/Recipe` JSON-LD when present, falls back to the page text otherwise.
+- **Import from a URL.** Reads the page, prefers its `schema.org/Recipe` JSON-LD when present, falls back to the page text otherwise. If the URL serves a PDF — HelloFresh publishes its recipe cards that way — the document goes to the model whole, so the card's layout survives.
 - **Import from photos.** Photograph the front and back of a recipe card — as many shots per recipe as you need. Claude reads them together, so an ingredient list on one side and instructions on the other come out as one recipe.
 - **Fills the gaps.** Recipe cards omit oven temperatures, pantry staples, and resting times. Anything the model adds is stored with `inferred: true` and rendered with an "added" badge, so you always know what the source actually said.
 - **Breaks down meal-kit sachets.** HelloFresh and friends ship pre-mixed blends like "Fajita Spice Blend". Each one gets reconstructed into its component spices, scaled to the recipe, and tagged with a confidence level.

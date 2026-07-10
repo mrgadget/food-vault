@@ -2,7 +2,13 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type Anthropic from "@anthropic-ai/sdk";
 
 import { anthropic, MODEL } from "./client";
-import { EXTRACTION_SYSTEM_PROMPT, PHOTO_USER_PROMPT, URL_USER_PROMPT } from "./prompt";
+import {
+  EXTRACTION_SYSTEM_PROMPT,
+  PDF_USER_PROMPT,
+  PHOTO_USER_PROMPT,
+  URL_USER_PROMPT,
+} from "./prompt";
+import type { Source } from "@/lib/import/fetch-page";
 import { UserFacingError } from "@/lib/job-stream";
 import { recipeSchema, type Recipe } from "@/lib/schema";
 
@@ -60,7 +66,23 @@ export function extractFromImages(images: ImageInput[]): Promise<Recipe> {
   return extract(content);
 }
 
-/** Read a recipe out of the readable text of a web page. */
-export function extractFromPage(url: string, pageText: string): Promise<Recipe> {
-  return extract([{ type: "text", text: URL_USER_PROMPT(url, pageText) }]);
+/**
+ * Read a recipe from whatever a URL turned out to serve.
+ *
+ * A PDF goes to the model whole, as a document block: meal-kit cards are
+ * published as PDFs, and their layout carries meaning that flattening to text
+ * would destroy — which column is pantry staples, which small print lists a
+ * spice blend's components.
+ */
+export function extractFromSource(url: string, source: Source): Promise<Recipe> {
+  if (source.kind === "pdf") {
+    return extract([
+      {
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data: source.base64 },
+      },
+      { type: "text", text: PDF_USER_PROMPT(url) },
+    ]);
+  }
+  return extract([{ type: "text", text: URL_USER_PROMPT(url, source.text) }]);
 }

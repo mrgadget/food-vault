@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { extractFromPage } from "@/lib/ai/extract";
+import { extractFromSource } from "@/lib/ai/extract";
 import { saveRecipe } from "@/lib/db/recipes";
-import { fetchPageText } from "@/lib/import/fetch-page";
+import { fetchSource } from "@/lib/import/fetch-page";
 import { streamJob } from "@/lib/job-stream";
 import { createClient } from "@/lib/supabase/server";
 
@@ -22,11 +22,11 @@ export async function POST(request: Request) {
   // Everything above fails fast with a real status code. Everything below is
   // slow, so it streams — see lib/job-stream.
   return streamJob(async (progress) => {
-    progress("Fetching the page…");
-    const pageText = await fetchPageText(url);
+    progress("Fetching…");
+    const source = await fetchSource(url);
 
-    progress("Reading the recipe…");
-    const recipe = await extractFromPage(url, pageText);
+    progress(source.kind === "pdf" ? "Reading the recipe card…" : "Reading the recipe…");
+    const recipe = await extractFromSource(url, source);
 
     progress("Saving…");
     return saveRecipe(supabase, auth.user.id, recipe, { source: "url", sourceUrl: url });

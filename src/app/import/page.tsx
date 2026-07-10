@@ -91,11 +91,12 @@ function UrlImport() {
         required
         value={url}
         onChange={(event) => setUrl(event.target.value)}
-        placeholder="https://www.hellofresh.com/recipes/..."
+        placeholder="https://www.hellofresh.co.nz/recipecards/card/…"
         className="mt-2 w-full rounded-lg border border-stone-300 px-4 py-3"
       />
       <p className="mt-2 text-sm text-stone-500">
-        We read the page, pull out the recipe, and fill in anything it leaves unsaid.
+        A recipe page, or a link straight to a recipe-card PDF. We read it, pull out the recipe,
+        and fill in anything it leaves unsaid.
       </p>
 
       {error && <p className="mt-4 text-sm text-red-700">{error}</p>}

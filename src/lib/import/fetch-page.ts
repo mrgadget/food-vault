@@ -2,20 +2,27 @@ import * as cheerio from "cheerio";
 
 import { UserFacingError } from "@/lib/job-stream";
 
-const MAX_BYTES = 3_000_000;
+// HTML is reduced to text before it reaches the model, so a small cap is fine.
+// A PDF is sent whole; Anthropic's request ceiling is 32MB, and base64 inflates
+// by a third, so 20MB of PDF is the practical limit.
+const MAX_HTML_BYTES = 3_000_000;
+const MAX_PDF_BYTES = 20_000_000;
 const MAX_TEXT_CHARS = 60_000;
 
 export class FetchFailed extends UserFacingError {}
 
 /**
- * Fetch a page and reduce it to the text a recipe extractor cares about.
+ * What a recipe URL turned out to be pointing at.
  *
- * Most recipe sites embed a schema.org/Recipe JSON-LD block. When present we
- * hand that to the model verbatim — it is already structured, so extraction is
- * near-lossless. Otherwise we fall back to the stripped body text, which is
- * noisier but still works.
+ * Meal-kit services publish their recipe cards as PDFs — the same artifact a
+ * cook would otherwise photograph front and back — so a PDF is a first-class
+ * source here, not a failure.
  */
-export async function fetchPageText(url: string): Promise<string> {
+export type Source =
+  | { kind: "html"; text: string }
+  | { kind: "pdf"; base64: string };
+
+export async function fetchSource(url: string): Promise<Source> {
   const parsed = assertPublicHttpUrl(url);
 
   const response = await fetch(parsed, {
@@ -23,20 +30,38 @@ export async function fetchPageText(url: string): Promise<string> {
     headers: {
       // Some recipe sites serve a bot wall to unrecognized agents.
       "user-agent": "Mozilla/5.0 (compatible; RecipeVault/0.1; +https://github.com/)",
-      accept: "text/html,application/xhtml+xml",
+      accept: "text/html,application/xhtml+xml,application/pdf",
     },
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!response.ok) {
     throw new FetchFailed(`${parsed.hostname} returned ${response.status}.`);
   }
-  const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.includes("html")) {
-    throw new FetchFailed(`${parsed.hostname} returned ${contentType || "no content type"}, not HTML.`);
+
+  const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+
+  if (contentType.includes("application/pdf")) {
+    const bytes = await readCapped(response, MAX_PDF_BYTES, "PDF");
+    return { kind: "pdf", base64: toBase64(bytes) };
   }
 
-  const html = await readCapped(response);
+  if (contentType.includes("html")) {
+    const bytes = await readCapped(response, MAX_HTML_BYTES, "page");
+    return { kind: "html", text: readableText(new TextDecoder().decode(bytes), parsed) };
+  }
+
+  throw new FetchFailed(
+    `${parsed.hostname} returned ${contentType || "no content type"}; only web pages and PDFs can be imported.`,
+  );
+}
+
+/**
+ * Most recipe sites embed a schema.org/Recipe JSON-LD block. When present we
+ * hand that to the model verbatim — it is already structured, so extraction is
+ * near-lossless. Otherwise we fall back to the stripped body text.
+ */
+function readableText(html: string, url: URL): string {
   const $ = cheerio.load(html);
 
   const jsonLd = findRecipeJsonLd($);
@@ -45,7 +70,7 @@ export async function fetchPageText(url: string): Promise<string> {
   $("script, style, nav, header, footer, noscript, iframe, svg, form").remove();
   const text = $("body").text().replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n\n").trim();
 
-  if (!text) throw new FetchFailed(`No readable text found at ${parsed.hostname}.`);
+  if (!text) throw new FetchFailed(`No readable text found at ${url.hostname}.`);
   return text.slice(0, MAX_TEXT_CHARS);
 }
 
@@ -65,7 +90,7 @@ function assertPublicHttpUrl(raw: string): URL {
     throw new FetchFailed("Only http and https URLs can be imported.");
   }
   const host = parsed.hostname.toLowerCase();
-  const isLoopback =
+  const isPrivate =
     host === "localhost" ||
     host === "[::1]" ||
     host.endsWith(".localhost") ||
@@ -74,16 +99,28 @@ function assertPublicHttpUrl(raw: string): URL {
     /^192\.168\./.test(host) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
     /^169\.254\./.test(host);
-  if (isLoopback) throw new FetchFailed("That URL points at a private address.");
+  if (isPrivate) throw new FetchFailed("That URL points at a private address.");
   return parsed;
 }
 
-async function readCapped(response: Response): Promise<string> {
+async function readCapped(response: Response, limit: number, what: string): Promise<Uint8Array> {
   const buffer = await response.arrayBuffer();
-  if (buffer.byteLength > MAX_BYTES) {
-    throw new FetchFailed("That page is too large to import.");
+  if (buffer.byteLength > limit) {
+    throw new FetchFailed(
+      `That ${what} is ${(buffer.byteLength / 1_000_000).toFixed(1)}MB; the limit is ${limit / 1_000_000}MB.`,
+    );
   }
-  return new TextDecoder().decode(buffer);
+  return new Uint8Array(buffer);
+}
+
+/** Workers has no Buffer, and spreading megabytes into fromCharCode blows the argument limit. */
+function toBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
 }
 
 /** Walk every JSON-LD block, including @graph arrays, looking for a Recipe. */

@@ -25,6 +25,15 @@ create type recipe_vault.image_kind as enum ('front', 'back', 'other', 'step', '
 -- web recipe has no such hierarchy and emits everything as `major`.
 create type recipe_vault.step_kind as enum ('major', 'minor');
 
+-- Lets recipes be filtered by what is in them.  gives the filter its
+-- shape;  collapses 'chicken breast', 'chicken thigh' and 'diced
+-- chicken' onto 'chicken', without which the filter is a list of every
+-- ingredient ever imported.
+create type recipe_vault.ingredient_category as enum (
+  'protein', 'vegetable', 'fruit', 'grain', 'dairy',
+  'legume', 'herb_spice', 'sauce', 'pantry', 'other'
+);
+
 -- gen_random_uuid() is in core Postgres since 13; no extension needed.
 
 create table recipe_vault.recipes (
@@ -57,6 +66,9 @@ create table recipe_vault.ingredients (
   item          text not null,
   prep_note     text,
   group_name    text,
+  category      recipe_vault.ingredient_category not null default 'other',
+  -- Null for anything not worth filtering on.
+  canonical     text,
   inferred      boolean not null default false,
   unique (recipe_id, position)
 );
@@ -106,6 +118,7 @@ create table recipe_vault.recipe_images (
 
 create index on recipe_vault.recipes (user_id, created_at desc);
 create index on recipe_vault.ingredients (recipe_id);
+create index on recipe_vault.ingredients (category, canonical);
 create index on recipe_vault.steps (recipe_id);
 create index on recipe_vault.sachet_expansions (recipe_id);
 create index on recipe_vault.recipe_images (recipe_id);

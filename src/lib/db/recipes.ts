@@ -61,6 +61,8 @@ export async function saveRecipe(
           item: ingredient.item,
           prep_note: ingredient.prepNote,
           group_name: ingredient.groupName,
+          category: ingredient.category,
+          canonical: ingredient.canonical,
           inferred: ingredient.inferred,
         })),
       )
@@ -129,13 +131,63 @@ export async function saveRecipe(
   return recipeId;
 }
 
-export async function listRecipes(supabase: ServerClient) {
+export type RecipeSummary = {
+  id: string;
+  title: string;
+  description: string | null;
+  cuisine: string | null;
+  servings: number | null;
+  prep_minutes: number | null;
+  cook_minutes: number | null;
+  created_at: string;
+  ingredients: { category: string; canonical: string | null }[];
+};
+
+/**
+ * Every recipe, with just enough of each ingredient to filter on.
+ *
+ * The filtering happens in JS rather than in the query. Filtering on two
+ * different ingredients at once ("chicken AND broccoli") is a relational
+ * division, which PostgREST cannot express without a view or an RPC — and a
+ * personal recipe vault holds hundreds of rows, not millions. If that ever
+ * stops being true, this is the thing to move into Postgres.
+ */
+export async function listRecipes(supabase: ServerClient): Promise<RecipeSummary[]> {
   const { data, error } = await supabase
     .from("recipes")
-    .select("id, title, description, cuisine, servings, prep_minutes, cook_minutes, created_at")
+    .select(
+      "id, title, description, cuisine, servings, prep_minutes, cook_minutes, created_at, ingredients (category, canonical)",
+    )
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
-  return data;
+  return (data ?? []) as unknown as RecipeSummary[];
+}
+
+/**
+ * Delete a recipe, its children, and the images it owns.
+ *
+ * The rows go by cascade. The storage objects do not — nothing in Postgres
+ * knows about the bucket — so they are removed first. Losing an image whose
+ * row survives is the worse failure of the two, so ordering it this way means
+ * a mid-way failure leaves an orphaned row pointing at a missing file, which
+ * the recipe page already tolerates, rather than a file nobody can reach.
+ */
+export async function deleteRecipe(supabase: ServerClient, id: string): Promise<void> {
+  const { data: images, error: imageError } = await supabase
+    .from("recipe_images")
+    .select("storage_path")
+    .eq("recipe_id", id);
+  if (imageError) throw new Error(imageError.message);
+
+  const paths = (images ?? []).map((image) => image.storage_path as string);
+  if (paths.length > 0) {
+    const { error } = await supabase.storage.from(IMAGE_BUCKET).remove(paths);
+    if (error) throw new Error(error.message);
+  }
+
+  // RLS scopes this to the signed-in user; a wrong id deletes nothing.
+  const { error } = await supabase.from("recipes").delete().eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 export async function getRecipe(supabase: ServerClient, id: string) {

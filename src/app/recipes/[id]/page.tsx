@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 
+import { DeleteRecipeButton } from "./delete-button";
+import { ServingsScaler } from "./servings";
 import { getRecipe, signImageUrls } from "@/lib/db/recipes";
 import { createClient } from "@/lib/supabase/server";
 
@@ -24,6 +26,13 @@ type ImageRow = {
   mime_type: string;
 };
 
+type SachetRow = {
+  id: string;
+  sachet_name: string;
+  components: SachetComponent[];
+  confidence: "high" | "medium" | "low";
+};
+
 /** A numbered step, the bullets beneath it, and the photograph that shows it. */
 type Block = { major: StepRow; minors: StepRow[]; photo?: string };
 
@@ -46,13 +55,6 @@ function toBlocks(steps: StepRow[], photoByStepId: Map<string, string>): Block[]
   return blocks;
 }
 
-type SachetRow = {
-  id: string;
-  sachet_name: string;
-  components: SachetComponent[];
-  confidence: "high" | "medium" | "low";
-};
-
 export default async function RecipePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
@@ -74,7 +76,10 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
 
   return (
     <article>
-      <h1 className="text-3xl font-semibold tracking-tight">{recipe.title}</h1>
+      <div className="flex items-start justify-between gap-4">
+        <h1 className="text-3xl font-semibold tracking-tight">{recipe.title}</h1>
+        <DeleteRecipeButton id={recipe.id} title={recipe.title} />
+      </div>
       {recipe.description && <p className="mt-3 text-stone-600">{recipe.description}</p>}
 
       <p className="mt-4 text-xs uppercase tracking-wide text-stone-500">
@@ -95,70 +100,29 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
         </aside>
       )}
 
-      <section className="mt-10">
-        <h2 className="text-lg font-semibold">Ingredients</h2>
-        <ul className="mt-4 space-y-2">
-          {(recipe.ingredients as IngredientRow[]).map((ingredient) => (
-            <li key={ingredient.id} className="flex gap-2">
-              <span className="text-stone-500 tabular-nums">
-                {formatAmount(ingredient.quantity, ingredient.unit)}
-              </span>
-              <span>
-                {ingredient.item}
-                {ingredient.prep_note && (
-                  <span className="text-stone-500">, {ingredient.prep_note}</span>
-                )}
-                {ingredient.inferred && <InferredBadge />}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {recipe.sachet_expansions.length > 0 && (
-        <section className="mt-10">
-          <h2 className="text-lg font-semibold">If you don&apos;t have the spice sachets</h2>
-          <p className="mt-1 text-sm text-stone-600">
-            Our best reconstruction of each pre-mixed blend, scaled to this recipe.
-          </p>
-          <div className="mt-4 space-y-4">
-            {(recipe.sachet_expansions as SachetRow[]).map((sachet) => (
-              <div key={sachet.id} className="rounded-lg border border-stone-200 p-4">
-                <p className="flex items-center gap-2 font-medium">
-                  {sachet.sachet_name}
-                  <Confidence level={sachet.confidence} />
-                </p>
-                <ul className="mt-2 space-y-1 text-sm">
-                  {sachet.components.map((component) => (
-                    <li key={component.item} className="flex gap-2">
-                      <span className="text-stone-500 tabular-nums">
-                        {formatAmount(component.quantity, component.unit)}
-                      </span>
-                      <span>{component.item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <ServingsScaler
+        baseServings={recipe.servings}
+        ingredients={recipe.ingredients as IngredientRow[]}
+        sachets={recipe.sachet_expansions as SachetRow[]}
+      />
 
       <section className="mt-10">
         <h2 className="text-lg font-semibold">Method</h2>
-        <ol className="mt-4 space-y-8">
+        <ol className="mt-4 space-y-6">
           {blocks.map((block, index) => (
             <li key={block.major.id} className="flex gap-4">
               <span className="shrink-0 pt-0.5 text-sm font-semibold text-amber-700 tabular-nums">
                 {index + 1}
               </span>
-              <div className="min-w-0 flex-1">
+              {/* `overflow-hidden` contains the floated photograph so the next
+                  step starts below it rather than wrapping around it. */}
+              <div className="min-w-0 flex-1 overflow-hidden">
                 {block.photo && (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img
                     src={block.photo}
                     alt=""
-                    className="mb-3 w-full rounded-lg border border-stone-200 bg-white"
+                    className="mb-2 ml-4 w-28 rounded-lg border border-stone-200 bg-white sm:float-right sm:w-40"
                   />
                 )}
                 <p className={block.minors.length > 0 ? "font-medium" : undefined}>
@@ -242,23 +206,4 @@ function InferredBadge() {
       added
     </span>
   );
-}
-
-function Confidence({ level }: { level: "high" | "medium" | "low" }) {
-  const tone = {
-    high: "bg-emerald-100 text-emerald-800",
-    medium: "bg-amber-100 text-amber-800",
-    low: "bg-stone-200 text-stone-700",
-  }[level];
-  return (
-    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${tone}`}>
-      {level} confidence
-    </span>
-  );
-}
-
-function formatAmount(quantity: number | null, unit: string | null): string {
-  // A null quantity is "to taste", not a missing value — show only the unit.
-  if (quantity === null) return unit ?? "";
-  return unit ? `${quantity} ${unit}` : String(quantity);
 }

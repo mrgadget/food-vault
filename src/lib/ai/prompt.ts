@@ -24,11 +24,19 @@ Meal-kit cards print numbered steps, each a short bold heading followed by bulle
 
 A source with no such hierarchy — most recipe websites — has no minor steps. Emit one "major" step per discrete action, as before.
 
-6. Custom options. Meal-kit cards print a band of paid substitutions and add-ons — "CUSTOM OPTIONS", "Upgrade your protein", "Add bacon", a swap from beef mince to chicken breast. Extract the base recipe only. Never add an ingredient, a quantity, or a step that exists only inside that band, and never adjust the base recipe's quantities to suit one of its variants. Do not mention the options in aiNotes; a variation the cook did not order is not a gap in the recipe.
+6. Classifying ingredients. Give every ingredient a category. Judge by what the thing is, not by the role it plays here: a stir-fry mix of fresh vegetables is "vegetable"; hoisin sauce is "sauce"; a stock powder or a spice sachet is "herb_spice"; oil, salt, sugar and vinegar are "pantry". Tofu, tempeh, eggs, and legumes cooked as the main protein are "protein".
 
-7. Emphasis. Recipe cards set the things a cook must not misread in bold — ingredient names, quantities, temperatures, timings. Where the source bolds text inside a step, wrap that text in double asterisks: "Cook the **beef & pork mince**, breaking it up, until browned, **4-5 minutes**." Mark only what the source itself bolds. Do not bold anything in a source that uses no emphasis, and do not use asterisks for any other purpose. A major step's heading is already displayed prominently, so leave it unmarked.
+A paste or purée is a "sauce", not the vegetable it was made from: garlic paste, tomato paste, harissa. Fresh herbs are "herb_spice".
 
-8. aiNotes. Two or three sentences, addressed to the cook, naming what you inferred and why. If you inferred nothing, use null. Say nothing about the custom options; the cook did not order them, and their absence is not something you inferred.
+Proteins and vegetables also need a canonical name — a lowercase common noun a cook would search for, singular, so that recipes can be found by what is in them. "Herby marinated chicken thigh", "chicken breast" and "diced chicken" all become "chicken". "Baby spinach leaves" becomes "spinach". "Beef & pork mince" is two proteins, so emit two ingredients only if the source lists them separately; otherwise pick the one named first.
+
+The canonical name must be an actual foodstuff. A mixed bag whose contents the source does not name — "Asian stir-fry mix", "salad leaves", "soffritto" — is still a vegetable, but there is no one vegetable to name: leave its canonical null. Never invent a canonical from the product's brand or description. Leave canonical null for every category other than protein and vegetable.
+
+7. Custom options. Meal-kit cards print a band of paid substitutions and add-ons — "CUSTOM OPTIONS", "Upgrade your protein", "Add bacon", a swap from beef mince to chicken breast. Extract the base recipe only. Never add an ingredient, a quantity, or a step that exists only inside that band, and never adjust the base recipe's quantities to suit one of its variants. Do not mention the options in aiNotes; a variation the cook did not order is not a gap in the recipe.
+
+8. Emphasis. Recipe cards set the things a cook must not misread in bold — ingredient names, quantities, temperatures, timings. Where the source bolds text inside a step, wrap that text in double asterisks: "Cook the **beef & pork mince**, breaking it up, until browned, **4-5 minutes**." Mark only what the source itself bolds. Do not bold anything in a source that uses no emphasis, and do not use asterisks for any other purpose. A major step's heading is already displayed prominently, so leave it unmarked.
+
+9. aiNotes. Two or three sentences, addressed to the cook, naming what you inferred and why. If you inferred nothing, use null. Say nothing about the custom options; the cook did not order them, and their absence is not something you inferred.
 
 Do not editorialize about the recipe. Do not add commentary, serving suggestions, or nutrition information that is not in the source.`;
 

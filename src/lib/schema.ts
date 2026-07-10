@@ -6,12 +6,30 @@ import { z } from "zod";
  * must always emit the key; `null` means "the source did not say".
  */
 
+export const ingredientCategories = [
+  "protein",
+  "vegetable",
+  "fruit",
+  "grain",
+  "dairy",
+  "legume",
+  "herb_spice",
+  "sauce",
+  "pantry",
+  "other",
+] as const;
+
 export const ingredientSchema = z.object({
   quantity: z.number().nullable().describe("Numeric amount, or null for 'to taste'"),
   unit: z.string().nullable().describe("g, ml, tbsp, clove, ... or null"),
   item: z.string().describe("The ingredient itself, without quantity or prep"),
   prepNote: z.string().nullable().describe("e.g. 'finely diced', 'at room temperature'"),
   groupName: z.string().nullable().describe("Sub-recipe heading, e.g. 'For the sauce'"),
+  category: z.enum(ingredientCategories).describe("What kind of ingredient this is"),
+  canonical: z
+    .string()
+    .nullable()
+    .describe("Lowercase common name for filtering: 'chicken', 'broccoli'. Null unless protein or vegetable."),
   inferred: z.boolean().describe("True if this was not stated in the source"),
 });
 

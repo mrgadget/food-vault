@@ -34,6 +34,14 @@ create type recipe_vault.ingredient_category as enum (
   'legume', 'herb_spice', 'sauce', 'pantry', 'other'
 );
 
+-- One course per recipe, so the collection is browsable by kind of dish. Sweet
+-- baked goods fall under 'dessert' rather than a form-based bucket, so a recipe
+-- is never two courses at once.
+create type recipe_vault.recipe_course as enum (
+  'main', 'starter', 'side', 'salad', 'soup', 'breakfast',
+  'dessert', 'snack', 'drink', 'sauce', 'other'
+);
+
 -- gen_random_uuid() is in core Postgres since 13; no extension needed.
 
 create table recipe_vault.recipes (
@@ -43,6 +51,7 @@ create table recipe_vault.recipes (
   description   text,
   source        recipe_vault.recipe_source not null,
   source_url    text,
+  course        recipe_vault.recipe_course not null default 'other',
   servings      int,
   prep_minutes  int,
   cook_minutes  int,
@@ -117,6 +126,7 @@ create table recipe_vault.recipe_images (
 );
 
 create index on recipe_vault.recipes (user_id, created_at desc);
+create index on recipe_vault.recipes (user_id, course);
 create index on recipe_vault.ingredients (recipe_id);
 create index on recipe_vault.ingredients (category, canonical);
 create index on recipe_vault.steps (recipe_id);

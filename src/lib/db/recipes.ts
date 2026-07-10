@@ -34,6 +34,7 @@ export async function saveRecipe(
       description: recipe.description,
       source: source.source,
       source_url: source.sourceUrl ?? null,
+      course: recipe.course,
       servings: recipe.servings,
       prep_minutes: recipe.prepMinutes,
       cook_minutes: recipe.cookMinutes,
@@ -136,6 +137,7 @@ export type RecipeSummary = {
   title: string;
   description: string | null;
   cuisine: string | null;
+  course: string;
   servings: number | null;
   prep_minutes: number | null;
   cook_minutes: number | null;
@@ -169,7 +171,7 @@ export async function listRecipes(supabase: ServerClient): Promise<RecipeSummary
   const { data, error } = await supabase
     .from("recipes")
     .select(
-      "id, title, description, cuisine, servings, prep_minutes, cook_minutes, created_at, ingredients (category, canonical), recipe_images (kind, storage_path)",
+      "id, title, description, cuisine, course, servings, prep_minutes, cook_minutes, created_at, ingredients (category, canonical), recipe_images (kind, storage_path)",
     )
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);

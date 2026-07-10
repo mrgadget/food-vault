@@ -55,9 +55,24 @@ export const stepSchema = z.object({
   inferred: z.boolean().describe("True if this step was not stated in the source"),
 });
 
+export const recipeCourses = [
+  "main",
+  "starter",
+  "side",
+  "salad",
+  "soup",
+  "breakfast",
+  "dessert",
+  "snack",
+  "drink",
+  "sauce",
+  "other",
+] as const;
+
 export const recipeSchema = z.object({
   title: z.string(),
   description: z.string().nullable(),
+  course: z.enum(recipeCourses).describe("The single course this dish belongs to"),
   servings: z.number().nullable(),
   prepMinutes: z.number().nullable(),
   cookMinutes: z.number().nullable(),

@@ -5,7 +5,22 @@ import { createClient } from "@/lib/supabase/server";
 
 const NO_PROTEIN = "none";
 
-type Search = { protein?: string; vegetable?: string };
+// The order a cook would scan them in, not alphabetical.
+const COURSE_ORDER = [
+  "main",
+  "starter",
+  "side",
+  "salad",
+  "soup",
+  "breakfast",
+  "dessert",
+  "snack",
+  "drink",
+  "sauce",
+  "other",
+];
+
+type Search = { course?: string; protein?: string; vegetable?: string };
 
 export default async function HomePage({
   searchParams,
@@ -26,7 +41,7 @@ export default async function HomePage({
     );
   }
 
-  const { protein, vegetable } = await searchParams;
+  const { course, protein, vegetable } = await searchParams;
   const recipes = await listRecipes(supabase);
 
   if (recipes.length === 0) {
@@ -48,11 +63,15 @@ export default async function HomePage({
 
   // Facets come from what has actually been imported, so the filters can never
   // offer a choice that matches nothing.
+  const courses = COURSE_ORDER.filter((c) => recipes.some((recipe) => recipe.course === c));
   const proteins = facet(recipes, "protein");
   const vegetables = facet(recipes, "vegetable");
 
   const visible = recipes.filter(
-    (recipe) => matchesProtein(recipe, protein) && matchesVegetable(recipe, vegetable),
+    (recipe) =>
+      (!course || recipe.course === course) &&
+      matchesProtein(recipe, protein) &&
+      matchesVegetable(recipe, vegetable),
   );
 
   // Sign every visible thumbnail in one round trip rather than per card.
@@ -65,17 +84,18 @@ export default async function HomePage({
     <>
       <h1 className="text-2xl font-semibold tracking-tight">Your recipes</h1>
 
+      <FilterRow label="Course" param="course" search={{ course, protein, vegetable }} options={courses} />
       <FilterRow
         label="Protein"
         param="protein"
-        search={{ protein, vegetable }}
+        search={{ course, protein, vegetable }}
         options={proteins}
         extra={[NO_PROTEIN]}
       />
       <FilterRow
         label="Vegetable"
         param="vegetable"
-        search={{ protein, vegetable }}
+        search={{ course, protein, vegetable }}
         options={vegetables}
       />
 
@@ -110,6 +130,7 @@ export default async function HomePage({
                     )}
                     <p className="mt-2 text-xs uppercase tracking-wide text-stone-500">
                       {[
+                        recipe.course !== "other" ? recipe.course : null,
                         recipe.cuisine,
                         recipe.servings && `Serves ${recipe.servings}`,
                         totalTime(recipe.prep_minutes, recipe.cook_minutes),

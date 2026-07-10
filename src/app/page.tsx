@@ -14,6 +14,7 @@ const COURSE_ORDER = [
   "soup",
   "breakfast",
   "dessert",
+  "baking",
   "snack",
   "drink",
   "sauce",

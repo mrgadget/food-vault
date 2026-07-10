@@ -24,7 +24,9 @@ Meal-kit cards print numbered steps, each a short bold heading followed by bulle
 
 A source with no such hierarchy — most recipe websites — has no minor steps. Emit one "major" step per discrete action, as before.
 
-6. Course. Give the recipe one course — the role the finished dish plays in a meal. "main" is the centre of a dinner or lunch, which is what most meal-kit cards are. "dessert" covers anything sweet served to finish or as a treat, cakes, cookies, tarts and puddings included. Use "starter", "side", "salad", "soup", "breakfast", "snack", or "drink" when the dish plainly is one. "sauce" is for a recipe whose whole output is a sauce, dressing, or condiment. Reach for "other" only when none genuinely fits. Pick the single best fit; do not hedge toward "other".
+6. Course. Give the recipe one course — the role the finished dish plays in a meal. "main" is the centre of a dinner or lunch, which is what most meal-kit cards are. Use "starter", "side", "salad", "soup", "breakfast", "snack", or "drink" when the dish plainly is one. "sauce" is for a recipe whose whole output is a sauce, dressing, or condiment. Reach for "other" only when none genuinely fits. Pick the single best fit; do not hedge toward "other".
+
+"baking" and "dessert" are distinct. Anything whose defining technique is baking a batter or dough — cakes, scones, muffins, cookies, biscuits, breads, pastries, pies, tarts, brownies — is "baking", whether sweet or savoury and whenever it is eaten. "dessert" is a sweet course that is not a baked good: ice cream, mousse, panna cotta, trifle, jelly, a fruit dish. A baked cheesecake or an apple pie is "baking", not "dessert".
 
 7. Classifying ingredients. Give every ingredient a category. Judge by what the thing is, not by the role it plays here: a stir-fry mix of fresh vegetables is "vegetable"; hoisin sauce is "sauce"; a stock powder or a spice sachet is "herb_spice"; oil, salt, sugar and vinegar are "pantry". Tofu, tempeh, eggs, and legumes cooked as the main protein are "protein".
 

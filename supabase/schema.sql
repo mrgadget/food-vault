@@ -34,12 +34,13 @@ create type recipe_vault.ingredient_category as enum (
   'legume', 'herb_spice', 'sauce', 'pantry', 'other'
 );
 
--- One course per recipe, so the collection is browsable by kind of dish. Sweet
--- baked goods fall under 'dessert' rather than a form-based bucket, so a recipe
--- is never two courses at once.
+-- One course per recipe, so the collection is browsable by kind of dish.
+-- 'baking' is the home for baked goods (cakes, scones, breads); 'dessert' is a
+-- sweet course that is not a baked good. Keeping them apart stops a scone or a
+-- cake scattering across breakfast/dessert/snack.
 create type recipe_vault.recipe_course as enum (
   'main', 'starter', 'side', 'salad', 'soup', 'breakfast',
-  'dessert', 'snack', 'drink', 'sauce', 'other'
+  'dessert', 'baking', 'snack', 'drink', 'sauce', 'other'
 );
 
 -- gen_random_uuid() is in core Postgres since 13; no extension needed.

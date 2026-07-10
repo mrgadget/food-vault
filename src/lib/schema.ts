@@ -63,6 +63,7 @@ export const recipeCourses = [
   "soup",
   "breakfast",
   "dessert",
+  "baking",
   "snack",
   "drink",
   "sauce",

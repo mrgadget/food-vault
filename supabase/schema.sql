@@ -18,7 +18,12 @@ create schema if not exists recipe_vault;
 
 -- Enums are schema-scoped, so these names are ours alone.
 create type recipe_vault.recipe_source as enum ('url', 'photo', 'manual');
-create type recipe_vault.image_kind as enum ('front', 'back', 'other');
+create type recipe_vault.image_kind as enum ('front', 'back', 'other', 'step', 'source');
+
+-- Meal-kit cards print numbered steps with a bold lead, each followed by
+-- bulleted sub-steps, and hang one photograph off the numbered step. A plain
+-- web recipe has no such hierarchy and emits everything as `major`.
+create type recipe_vault.step_kind as enum ('major', 'minor');
 
 -- gen_random_uuid() is in core Postgres since 13; no extension needed.
 
@@ -60,6 +65,9 @@ create table recipe_vault.steps (
   id            uuid primary key default gen_random_uuid(),
   recipe_id     uuid not null references recipe_vault.recipes (id) on delete cascade,
   position      int not null,
+  -- One ordered sequence, not a tree: a `minor` step belongs to the nearest
+  -- `major` step above it. Ordering and re-ordering stay trivial.
+  kind          recipe_vault.step_kind not null default 'major',
   text          text not null,
   inferred      boolean not null default false,
   unique (recipe_id, position)
@@ -78,10 +86,18 @@ create table recipe_vault.sachet_expansions (
   created_at    timestamptz not null default now()
 );
 
+-- Holds photographs and, for a URL import, the source document itself. The
+-- source is archived because a meal-kit card URL is not stable: HelloFresh
+-- reuses card ids across menu weeks, so `recipes.source_url` stops resolving
+-- to the recipe stored against it.
 create table recipe_vault.recipe_images (
   id            uuid primary key default gen_random_uuid(),
   recipe_id     uuid not null references recipe_vault.recipes (id) on delete cascade,
+  -- A step has at most one picture, a picture belongs to at most one step.
+  -- Pointing this way lets steps be inserted before the images that show them.
+  step_id       uuid references recipe_vault.steps (id) on delete set null,
   storage_path  text not null,
+  mime_type     text not null default 'image/jpeg',
   position      int not null,
   kind          recipe_vault.image_kind not null default 'other',
   created_at    timestamptz not null default now(),
@@ -93,6 +109,7 @@ create index on recipe_vault.ingredients (recipe_id);
 create index on recipe_vault.steps (recipe_id);
 create index on recipe_vault.sachet_expansions (recipe_id);
 create index on recipe_vault.recipe_images (recipe_id);
+create index on recipe_vault.recipe_images (step_id);
 
 -- Kept in our own schema rather than a shared one. Five lines duplicated per
 -- app is cheaper than a cross-app dependency that nobody owns. An empty

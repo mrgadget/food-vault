@@ -1,8 +1,15 @@
 import type { ServerClient } from "@/lib/supabase/server";
 
 import type { Recipe } from "@/lib/schema";
+import { IMAGE_BUCKET } from "@/lib/supabase/schema";
 
-export type SavedImage = { storagePath: string; kind: "front" | "back" | "other" };
+export type SavedImage = {
+  storagePath: string;
+  kind: "front" | "back" | "other" | "step" | "source";
+  mimeType: string;
+  /** Index into `recipe.steps` of the step this photograph illustrates. */
+  stepIndex?: number;
+};
 
 /**
  * Persist an extracted recipe and its children.
@@ -60,15 +67,27 @@ export async function saveRecipe(
       .select("id, item");
     if (ingredientError) throw new Error(ingredientError.message);
 
-    const { error: stepError } = await supabase.from("steps").insert(
-      recipe.steps.map((step, position) => ({
-        recipe_id: recipeId,
-        position,
-        text: step.text,
-        inferred: step.inferred,
-      })),
-    );
+    const { data: stepRows, error: stepError } = await supabase
+      .from("steps")
+      .insert(
+        recipe.steps.map((step, position) => ({
+          recipe_id: recipeId,
+          position,
+          kind: step.kind,
+          text: step.text,
+          inferred: step.inferred,
+        })),
+      )
+      .select("id, position");
     if (stepError) throw new Error(stepError.message);
+
+    // Steps are inserted before the images that illustrate them, so the
+    // foreign key resolves without a second pass. Postgres does not promise
+    // insert order in the returned rows, so index by position rather than by
+    // array offset.
+    const stepIdByPosition = new Map<number, string>(
+      (stepRows ?? []).map((row) => [row.position as number, row.id as string]),
+    );
 
     if (recipe.sachetExpansions.length > 0) {
       const { error: sachetError } = await supabase.from("sachet_expansions").insert(
@@ -94,7 +113,10 @@ export async function saveRecipe(
           recipe_id: recipeId,
           position,
           storage_path: image.storagePath,
+          mime_type: image.mimeType,
           kind: image.kind,
+          step_id:
+            image.stepIndex === undefined ? null : stepIdByPosition.get(image.stepIndex) ?? null,
         })),
       );
       if (imageError) throw new Error(imageError.message);
@@ -134,4 +156,30 @@ export async function getRecipe(supabase: ServerClient, id: string) {
   data.ingredients.sort((a: { position: number }, b: { position: number }) => a.position - b.position);
   data.steps.sort((a: { position: number }, b: { position: number }) => a.position - b.position);
   return data;
+}
+
+/**
+ * The bucket is private, so images are reachable only through short-lived
+ * signed URLs. One round trip for the whole recipe rather than one per image.
+ */
+export async function signImageUrls(
+  supabase: ServerClient,
+  storagePaths: string[],
+  expiresInSeconds = 3600,
+): Promise<Map<string, string>> {
+  if (storagePaths.length === 0) return new Map();
+
+  const { data, error } = await supabase.storage
+    .from(IMAGE_BUCKET)
+    .createSignedUrls(storagePaths, expiresInSeconds);
+  if (error) throw new Error(error.message);
+
+  // `path` and `signedUrl` are both nullable per entry: signing one object can
+  // fail without failing the batch.
+  const signed = new Map<string, string>();
+  for (const entry of data ?? []) {
+    if (entry.error || !entry.path || !entry.signedUrl) continue;
+    signed.set(entry.path, entry.signedUrl);
+  }
+  return signed;
 }

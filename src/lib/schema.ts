@@ -28,7 +28,12 @@ export const sachetExpansionSchema = z.object({
 });
 
 export const stepSchema = z.object({
-  text: z.string(),
+  kind: z
+    .enum(["major", "minor"])
+    .describe("'major' for a numbered step, 'minor' for a bullet beneath one"),
+  text: z
+    .string()
+    .describe("For a major step, its heading if it has one, else the whole instruction"),
   inferred: z.boolean().describe("True if this step was not stated in the source"),
 });
 

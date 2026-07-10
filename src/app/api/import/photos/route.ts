@@ -63,7 +63,7 @@ export async function POST(request: Request) {
           .from(IMAGE_BUCKET)
           .upload(storagePath, bytes, { contentType: files[i].type, upsert: false });
         if (error) throw new Error(error.message);
-        uploaded.push({ storagePath, kind: normalizeKind(kinds[i]) });
+        uploaded.push({ storagePath, kind: normalizeKind(kinds[i]), mimeType: files[i].type });
       }
     } catch (error) {
       await supabase.storage.from(IMAGE_BUCKET).remove(uploaded.map((image) => image.storagePath));

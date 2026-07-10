@@ -18,7 +18,11 @@ Only expand actual spice or seasoning blends. A stock powder, a paste, a relish,
 
 4. Gaps. Recipe cards routinely omit oven temperatures, pan sizes, resting times, and pantry staples (oil, salt, pepper, water) that the steps go on to reference. Add what is missing so the recipe can actually be cooked, and set inferred: true on every ingredient or step you added. Never set inferred: true on something the source stated.
 
-5. Steps. One discrete action per step. Preserve the source's order. Do not merge steps and do not renumber around them.
+5. Steps. Preserve the source's order. Do not merge steps and do not renumber around them.
+
+Meal-kit cards print numbered steps, each a short bold heading followed by bulleted sub-steps. Emit the numbered step as kind "major", using its heading as the text, then each of its bullets as kind "minor" immediately after it. Do not fold a heading into the bullet that follows it, and do not promote a bullet to a numbered step.
+
+A source with no such hierarchy — most recipe websites — has no minor steps. Emit one "major" step per discrete action, as before.
 
 6. aiNotes. Two or three sentences, addressed to the cook, naming what you inferred and why. If you inferred nothing, use null.
 

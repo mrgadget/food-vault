@@ -20,7 +20,9 @@ export class FetchFailed extends UserFacingError {}
  */
 export type Source =
   | { kind: "html"; text: string }
-  | { kind: "pdf"; base64: string };
+  // Both forms of the same document: base64 for the model, bytes for archiving
+  // and for pulling the step photographs out. Encoding once is worth the memory.
+  | { kind: "pdf"; base64: string; bytes: Uint8Array };
 
 export async function fetchSource(url: string): Promise<Source> {
   const parsed = assertPublicHttpUrl(url);
@@ -43,7 +45,7 @@ export async function fetchSource(url: string): Promise<Source> {
 
   if (contentType.includes("application/pdf")) {
     const bytes = await readCapped(response, MAX_PDF_BYTES, "PDF");
-    return { kind: "pdf", base64: toBase64(bytes) };
+    return { kind: "pdf", base64: toBase64(bytes), bytes };
   }
 
   if (contentType.includes("html")) {

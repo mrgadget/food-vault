@@ -7,6 +7,7 @@ import { UserFacingError } from "@/lib/job-stream";
 // by a third, so 20MB of PDF is the practical limit.
 const MAX_HTML_BYTES = 3_000_000;
 const MAX_PDF_BYTES = 20_000_000;
+const MAX_IMAGE_BYTES = 15_000_000;
 const MAX_TEXT_CHARS = 60_000;
 
 export class FetchFailed extends UserFacingError {}
@@ -19,7 +20,9 @@ export class FetchFailed extends UserFacingError {}
  * source here, not a failure.
  */
 export type Source =
-  | { kind: "html"; text: string }
+  // `heroUrl` is the page's own lead photograph (og:image / schema.org image),
+  // fetched separately and only if present.
+  | { kind: "html"; text: string; heroUrl: string | null }
   // Both forms of the same document: base64 for the model, bytes for archiving
   // and for pulling the step photographs out. Encoding once is worth the memory.
   | { kind: "pdf"; base64: string; bytes: Uint8Array };
@@ -50,7 +53,8 @@ export async function fetchSource(url: string): Promise<Source> {
 
   if (contentType.includes("html")) {
     const bytes = await readCapped(response, MAX_HTML_BYTES, "page");
-    return { kind: "html", text: readableText(new TextDecoder().decode(bytes), parsed) };
+    const html = new TextDecoder().decode(bytes);
+    return { kind: "html", text: readableText(html, parsed), heroUrl: findHeroUrl(html, parsed) };
   }
 
   throw new FetchFailed(
@@ -74,6 +78,71 @@ function readableText(html: string, url: URL): string {
 
   if (!text) throw new FetchFailed(`No readable text found at ${url.hostname}.`);
   return text.slice(0, MAX_TEXT_CHARS);
+}
+
+/**
+ * The page's own lead photograph: the Recipe JSON-LD `image`, else `og:image`.
+ * Resolved against the page URL so a relative path becomes absolute. Null when
+ * the page advertises none.
+ */
+function findHeroUrl(html: string, pageUrl: URL): string | null {
+  const $ = cheerio.load(html);
+
+  const fromRecipe = imageFromJsonLd(findRecipeJsonLdNode($));
+  const raw = fromRecipe ?? $('meta[property="og:image"]').attr("content") ?? null;
+  if (!raw) return null;
+
+  try {
+    return new URL(raw, pageUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+/** schema.org `image` is maddeningly polymorphic: a string, an array, or an ImageObject. */
+function imageFromJsonLd(recipe: unknown): string | null {
+  if (!recipe || typeof recipe !== "object") return null;
+  const image = (recipe as Record<string, unknown>).image;
+
+  const first = Array.isArray(image) ? image[0] : image;
+  if (typeof first === "string") return first;
+  if (first && typeof first === "object") {
+    const url = (first as Record<string, unknown>).url;
+    if (typeof url === "string") return url;
+  }
+  return null;
+}
+
+/**
+ * Fetch an image the page pointed at. Best-effort: a hero is a nicety, so any
+ * failure returns null rather than derailing the import. Same public-URL guard
+ * as the page fetch — this is another server-side fetch of a page-supplied URL.
+ */
+export async function fetchImage(url: string): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
+  let parsed: URL;
+  try {
+    parsed = assertPublicHttpUrl(url);
+  } catch {
+    return null;
+  }
+
+  try {
+    const response = await fetch(parsed, {
+      redirect: "follow",
+      headers: { accept: "image/*" },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) return null;
+
+    const mimeType = (response.headers.get("content-type") ?? "").split(";")[0].trim();
+    if (!mimeType.startsWith("image/")) return null;
+
+    const buffer = await response.arrayBuffer();
+    if (buffer.byteLength > MAX_IMAGE_BYTES) return null;
+    return { bytes: new Uint8Array(buffer), mimeType };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -127,6 +196,12 @@ function toBase64(bytes: Uint8Array): string {
 
 /** Walk every JSON-LD block, including @graph arrays, looking for a Recipe. */
 function findRecipeJsonLd($: cheerio.CheerioAPI): string | null {
+  const recipe = findRecipeJsonLdNode($);
+  return recipe ? JSON.stringify(recipe, null, 2) : null;
+}
+
+/** The Recipe node itself, for callers that want a field off it (e.g. the image). */
+function findRecipeJsonLdNode($: cheerio.CheerioAPI): unknown | null {
   for (const element of $('script[type="application/ld+json"]').toArray()) {
     const raw = $(element).text();
     if (!raw.trim()) continue;
@@ -139,7 +214,7 @@ function findRecipeJsonLd($: cheerio.CheerioAPI): string | null {
     }
 
     const recipe = findRecipeNode(parsed);
-    if (recipe) return JSON.stringify(recipe, null, 2);
+    if (recipe) return recipe;
   }
   return null;
 }

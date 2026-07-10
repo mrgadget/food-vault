@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { listRecipes, type RecipeSummary } from "@/lib/db/recipes";
+import { listRecipes, signImageUrls, type RecipeSummary } from "@/lib/db/recipes";
 import { createClient } from "@/lib/supabase/server";
 
 const NO_PROTEIN = "none";
@@ -55,6 +55,12 @@ export default async function HomePage({
     (recipe) => matchesProtein(recipe, protein) && matchesVegetable(recipe, vegetable),
   );
 
+  // Sign every visible thumbnail in one round trip rather than per card.
+  const heroUrls = await signImageUrls(
+    supabase,
+    visible.map((recipe) => recipe.heroPath).filter((path): path is string => path !== null),
+  );
+
   return (
     <>
       <h1 className="text-2xl font-semibold tracking-tight">Your recipes</h1>
@@ -82,25 +88,40 @@ export default async function HomePage({
         </p>
       ) : (
         <ul className="mt-6 divide-y divide-stone-200">
-          {visible.map((recipe) => (
-            <li key={recipe.id}>
-              <Link href={`/recipes/${recipe.id}`} className="block py-4">
-                <h2 className="font-medium">{recipe.title}</h2>
-                {recipe.description && (
-                  <p className="mt-1 line-clamp-2 text-sm text-stone-600">{recipe.description}</p>
-                )}
-                <p className="mt-2 text-xs uppercase tracking-wide text-stone-500">
-                  {[
-                    recipe.cuisine,
-                    recipe.servings && `Serves ${recipe.servings}`,
-                    totalTime(recipe.prep_minutes, recipe.cook_minutes),
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
-              </Link>
-            </li>
-          ))}
+          {visible.map((recipe) => {
+            const heroUrl = recipe.heroPath ? heroUrls.get(recipe.heroPath) : undefined;
+            return (
+              <li key={recipe.id}>
+                <Link href={`/recipes/${recipe.id}`} className="flex gap-4 py-4">
+                  {heroUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={heroUrl}
+                      alt=""
+                      className="h-20 w-20 shrink-0 rounded-lg border border-stone-200 object-cover"
+                    />
+                  ) : (
+                    <div className="h-20 w-20 shrink-0 rounded-lg border border-dashed border-stone-200" />
+                  )}
+                  <div className="min-w-0">
+                    <h2 className="font-medium">{recipe.title}</h2>
+                    {recipe.description && (
+                      <p className="mt-1 line-clamp-2 text-sm text-stone-600">{recipe.description}</p>
+                    )}
+                    <p className="mt-2 text-xs uppercase tracking-wide text-stone-500">
+                      {[
+                        recipe.cuisine,
+                        recipe.servings && `Serves ${recipe.servings}`,
+                        totalTime(recipe.prep_minutes, recipe.cook_minutes),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </>

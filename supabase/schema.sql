@@ -18,15 +18,15 @@ create schema if not exists recipe_vault;
 
 -- Enums are schema-scoped, so these names are ours alone.
 create type recipe_vault.recipe_source as enum ('url', 'photo', 'manual');
-create type recipe_vault.image_kind as enum ('front', 'back', 'other', 'step', 'source');
+create type recipe_vault.image_kind as enum ('front', 'back', 'other', 'step', 'source', 'hero');
 
 -- Meal-kit cards print numbered steps with a bold lead, each followed by
 -- bulleted sub-steps, and hang one photograph off the numbered step. A plain
 -- web recipe has no such hierarchy and emits everything as `major`.
 create type recipe_vault.step_kind as enum ('major', 'minor');
 
--- Lets recipes be filtered by what is in them.  gives the filter its
--- shape;  collapses 'chicken breast', 'chicken thigh' and 'diced
+-- Lets recipes be filtered by what is in them. `category` gives the filter its
+-- shape; `canonical` collapses 'chicken breast', 'chicken thigh' and 'diced
 -- chicken' onto 'chicken', without which the filter is a list of every
 -- ingredient ever imported.
 create type recipe_vault.ingredient_category as enum (

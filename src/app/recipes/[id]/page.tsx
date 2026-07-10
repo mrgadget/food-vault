@@ -22,7 +22,7 @@ type ImageRow = {
   id: string;
   step_id: string | null;
   storage_path: string;
-  kind: "front" | "back" | "other" | "step" | "source";
+  kind: "front" | "back" | "other" | "step" | "source" | "hero";
   mime_type: string;
 };
 
@@ -72,10 +72,22 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
   const sourceDocument = images.find((image) => image.kind === "source");
   const sourceUrl = sourceDocument ? signed.get(sourceDocument.storage_path) : undefined;
 
+  const heroImage =
+    images.find((image) => image.kind === "hero") ?? images.find((image) => image.kind === "front");
+  const heroUrl = heroImage ? signed.get(heroImage.storage_path) : undefined;
+
   const blocks = toBlocks(recipe.steps as StepRow[], photoByStepId);
 
   return (
     <article>
+      {heroUrl && (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={heroUrl}
+          alt=""
+          className="mb-6 max-h-72 w-full rounded-xl border border-stone-200 object-cover"
+        />
+      )}
       <div className="flex items-start justify-between gap-4">
         <h1 className="text-3xl font-semibold tracking-tight">{recipe.title}</h1>
         <DeleteRecipeButton id={recipe.id} title={recipe.title} />

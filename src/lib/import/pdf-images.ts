@@ -38,10 +38,15 @@ export type PdfImage = {
 const MIN_PHOTO_EDGE = 400;
 /** The hero shot dwarfs the step photos; it is the card's cover, not a step. */
 const HERO_MEGAPIXELS = 4;
+/** Longest edge of a stored hero. Big enough for a banner, small enough to thumbnail. */
+const HERO_MAX_EDGE = 900;
 
-export async function extractStepPhotos(pdf: Uint8Array): Promise<PdfImage[]> {
+type RawImage = { page: number; width: number; height: number; bytes: Uint8Array };
+
+/** Every embedded JPEG on the card, in reading order, with its dimensions. */
+async function rawImages(pdf: Uint8Array): Promise<RawImage[]> {
   const doc = await PDFDocument.load(pdf, { ignoreEncryption: true });
-  const found: PdfImage[] = [];
+  const images: RawImage[] = [];
 
   doc.getPages().forEach((page, pageIndex) => {
     const resources = page.node.Resources();
@@ -63,22 +68,69 @@ export async function extractStepPhotos(pdf: Uint8Array): Promise<PdfImage[]> {
       const height = Number(dict.get(PDFName.of("Height"))?.toString());
       if (!width || !height) continue;
 
-      const isPhoto =
-        Math.min(width, height) >= MIN_PHOTO_EDGE &&
-        (width * height) / 1e6 < HERO_MEGAPIXELS;
-      if (!isPhoto) continue;
-
-      found.push({
-        index: found.length,
-        page: pageIndex + 1,
-        width,
-        height,
-        jpeg: toDisplayableJpeg(stream.contents),
-      });
+      images.push({ page: pageIndex + 1, width, height, bytes: stream.contents });
     }
   });
 
-  return found;
+  return images;
+}
+
+export async function extractStepPhotos(pdf: Uint8Array): Promise<PdfImage[]> {
+  const photos: PdfImage[] = [];
+
+  for (const image of await rawImages(pdf)) {
+    const isPhoto =
+      Math.min(image.width, image.height) >= MIN_PHOTO_EDGE &&
+      (image.width * image.height) / 1e6 < HERO_MEGAPIXELS;
+    if (!isPhoto) continue;
+
+    photos.push({
+      index: photos.length,
+      page: image.page,
+      width: image.width,
+      height: image.height,
+      jpeg: toDisplayableJpeg(image.bytes),
+    });
+  }
+
+  return photos;
+}
+
+/**
+ * The card's cover photograph, downscaled — the plated dish, shot large.
+ *
+ * It is the biggest image on the card and the one extractStepPhotos throws
+ * away for being too big; here that size is the whole point. Downscaled on the
+ * way out: the original is ~10 megapixels, far more than a thumbnail or a
+ * banner needs, and storing that per recipe is wasteful.
+ *
+ * Returns null when no image is large enough to be a cover — a plain photo of
+ * a printed page has no hero.
+ */
+export async function extractHeroImage(pdf: Uint8Array): Promise<Uint8Array | null> {
+  const images = await rawImages(pdf);
+
+  let hero: RawImage | undefined;
+  for (const image of images) {
+    if ((image.width * image.height) / 1e6 < HERO_MEGAPIXELS) continue;
+    if (!hero || image.width * image.height > hero.width * hero.height) hero = image;
+  }
+  if (!hero) return null;
+
+  const { rgba, width, height } = decodeToRgba(hero.bytes);
+  return downscaleToJpeg(rgba, width, height, HERO_MAX_EDGE);
+}
+
+/**
+ * Normalise a hero image fetched from the web to a stored thumbnail: decode,
+ * downscale, re-encode as JPEG. Only JPEGs are handled here — jpeg-js cannot
+ * read PNG or WebP — so those are returned unchanged and stored at full size,
+ * which the browser can display and size down itself.
+ */
+export function prepareHeroJpeg(bytes: Uint8Array, mimeType: string): { bytes: Uint8Array; mimeType: string } {
+  if (mimeType !== "image/jpeg") return { bytes, mimeType };
+  const { rgba, width, height } = decodeToRgba(bytes);
+  return { bytes: downscaleToJpeg(rgba, width, height, HERO_MAX_EDGE), mimeType: "image/jpeg" };
 }
 
 /**
@@ -96,7 +148,20 @@ export async function extractStepPhotos(pdf: Uint8Array): Promise<PdfImage[]> {
  */
 function toDisplayableJpeg(raw: Uint8Array): Uint8Array {
   if (componentCount(raw) !== 4) return raw;
+  const { rgba, width, height } = decodeToRgba(raw);
+  return jpeg.encode({ data: rgba, width, height }, 82).data;
+}
 
+/**
+ * Decode a card JPEG to RGBA pixels.
+ *
+ * The four-component case is the interesting one: these are DeviceCMYK with an
+ * Adobe marker, and jpeg-js's public decode() gets the transform wrong. The
+ * vendored decoder's getData() hands back the raw channels, each of the first
+ * three already `255 - ink`, so the subtractive conversion (channel scaled by
+ * black) is correct. A three-component image is ordinary RGB.
+ */
+function decodeToRgba(raw: Uint8Array): { rgba: Uint8Array; width: number; height: number } {
   const image = new JpegImage();
   image.opts = { useTArray: true, tolerantDecoding: true, maxResolutionInMP: 100, maxMemoryUsageInMB: 512 };
   // The guard is module-scoped and starts at zero, so it must be armed per image.
@@ -105,20 +170,73 @@ function toDisplayableJpeg(raw: Uint8Array): Uint8Array {
 
   const { width, height } = image;
   const channels = image.getData(width, height);
+  const perPixel = channels.length / (width * height);
   const rgba = new Uint8Array(width * height * 4);
 
   for (let pixel = 0; pixel < width * height; pixel++) {
-    const c = channels[pixel * 4];
-    const m = channels[pixel * 4 + 1];
-    const y = channels[pixel * 4 + 2];
-    const k = channels[pixel * 4 + 3];
-    rgba[pixel * 4] = (c * k) / 255;
-    rgba[pixel * 4 + 1] = (m * k) / 255;
-    rgba[pixel * 4 + 2] = (y * k) / 255;
+    if (perPixel === 4) {
+      const c = channels[pixel * 4];
+      const m = channels[pixel * 4 + 1];
+      const y = channels[pixel * 4 + 2];
+      const k = channels[pixel * 4 + 3];
+      rgba[pixel * 4] = (c * k) / 255;
+      rgba[pixel * 4 + 1] = (m * k) / 255;
+      rgba[pixel * 4 + 2] = (y * k) / 255;
+    } else {
+      rgba[pixel * 4] = channels[pixel * perPixel];
+      rgba[pixel * 4 + 1] = channels[pixel * perPixel + 1];
+      rgba[pixel * 4 + 2] = channels[pixel * perPixel + 2];
+    }
     rgba[pixel * 4 + 3] = 255;
   }
 
-  return jpeg.encode({ data: rgba, width, height }, 82).data;
+  return { rgba, width, height };
+}
+
+/**
+ * Box-average an RGBA image down so its longest edge is at most `maxEdge`,
+ * then encode as JPEG. Averaging rather than dropping pixels keeps a shrunk
+ * photograph from looking like broken glass.
+ */
+function downscaleToJpeg(
+  rgba: Uint8Array,
+  width: number,
+  height: number,
+  maxEdge: number,
+): Uint8Array {
+  const scale = Math.min(1, maxEdge / Math.max(width, height));
+  if (scale === 1) return jpeg.encode({ data: rgba, width, height }, 82).data;
+
+  const outWidth = Math.max(1, Math.round(width * scale));
+  const outHeight = Math.max(1, Math.round(height * scale));
+  const out = new Uint8Array(outWidth * outHeight * 4);
+
+  for (let oy = 0; oy < outHeight; oy++) {
+    const y0 = Math.floor((oy * height) / outHeight);
+    const y1 = Math.max(y0 + 1, Math.floor(((oy + 1) * height) / outHeight));
+    for (let ox = 0; ox < outWidth; ox++) {
+      const x0 = Math.floor((ox * width) / outWidth);
+      const x1 = Math.max(x0 + 1, Math.floor(((ox + 1) * width) / outWidth));
+
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = (y * width + x) * 4;
+          r += rgba[i];
+          g += rgba[i + 1];
+          b += rgba[i + 2];
+          n++;
+        }
+      }
+      const o = (oy * outWidth + ox) * 4;
+      out[o] = r / n;
+      out[o + 1] = g / n;
+      out[o + 2] = b / n;
+      out[o + 3] = 255;
+    }
+  }
+
+  return jpeg.encode({ data: out, width: outWidth, height: outHeight }, 82).data;
 }
 
 /** Read the component count out of the JPEG's start-of-frame marker. */

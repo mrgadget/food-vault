@@ -5,7 +5,7 @@ import { IMAGE_BUCKET } from "@/lib/supabase/schema";
 
 export type SavedImage = {
   storagePath: string;
-  kind: "front" | "back" | "other" | "step" | "source";
+  kind: "front" | "back" | "other" | "step" | "source" | "hero";
   mimeType: string;
   /** Index into `recipe.steps` of the step this photograph illustrates. */
   stepIndex?: number;
@@ -141,7 +141,20 @@ export type RecipeSummary = {
   cook_minutes: number | null;
   created_at: string;
   ingredients: { category: string; canonical: string | null }[];
+  /** Storage path of the listing thumbnail, or null if the recipe has no image. */
+  heroPath: string | null;
 };
+
+type ImageForHero = { kind: string; storage_path: string };
+
+/** The thumbnail: a dedicated hero, else the front-of-card photo, else nothing. */
+function heroPathFrom(images: ImageForHero[]): string | null {
+  return (
+    images.find((image) => image.kind === "hero")?.storage_path ??
+    images.find((image) => image.kind === "front")?.storage_path ??
+    null
+  );
+}
 
 /**
  * Every recipe, with just enough of each ingredient to filter on.
@@ -156,11 +169,15 @@ export async function listRecipes(supabase: ServerClient): Promise<RecipeSummary
   const { data, error } = await supabase
     .from("recipes")
     .select(
-      "id, title, description, cuisine, servings, prep_minutes, cook_minutes, created_at, ingredients (category, canonical)",
+      "id, title, description, cuisine, servings, prep_minutes, cook_minutes, created_at, ingredients (category, canonical), recipe_images (kind, storage_path)",
     )
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as RecipeSummary[];
+
+  return (data ?? []).map((row) => {
+    const { recipe_images, ...rest } = row as typeof row & { recipe_images: ImageForHero[] };
+    return { ...rest, heroPath: heroPathFrom(recipe_images) } as unknown as RecipeSummary;
+  });
 }
 
 /**

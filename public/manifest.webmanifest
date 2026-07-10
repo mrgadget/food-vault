@@ -1,0 +1,17 @@
+{
+  "name": "RecipeVault",
+  "short_name": "RecipeVault",
+  "description": "Collect recipes from the web and from photos of recipe cards.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf7f2",
+  "theme_color": "#faf7f2",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

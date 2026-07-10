@@ -6,12 +6,20 @@ const nextConfig: NextConfig = {};
 
 export default nextConfig;
 
-// Makes Cloudflare bindings available to `next dev`. No-op in production,
-// where the Worker supplies them directly.
+// Makes Cloudflare bindings available to `next dev`, where the Worker is not
+// running to supply them.
+//
+// Guarded, and not only for tidiness. The adapter decides for itself whether to
+// run, by checking for a global AsyncLocalStorage — and when it decides yes it
+// dynamically imports wrangler and starts a workerd process, from an unawaited
+// promise. That is fine on a developer's machine and has no place in a build
+// container. `next build` sets NODE_ENV=production; `next dev` does not.
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
-initOpenNextCloudflareForDev();
 
-loadDevVars();
+if (process.env.NODE_ENV !== "production") {
+  initOpenNextCloudflareForDev();
+  loadDevVars();
+}
 
 /**
  * Put `.dev.vars` into `process.env` for `next dev`.

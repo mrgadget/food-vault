@@ -11,13 +11,16 @@
   },
   "observability": {
     "enabled": true
-  },
-  // A vision extraction spends almost all of its time waiting on the Anthropic
-  // API, which costs no CPU. This ceiling covers the base64 and JSON work
-  // around it. Requires a paid Workers plan; the default is 30s.
-  "limits": {
-    "cpu_ms": 300000
   }
+
+  // No `limits.cpu_ms` here: the Free plan rejects the field outright, and its
+  // ceiling is 10ms of CPU per request regardless. Waiting on the Anthropic API
+  // costs no CPU, but base64-encoding a multi-megabyte PDF or photo does, and
+  // that alone will exceed 10ms.
+  //
+  // On Workers Paid the default is 30s, which is ample. Only raise it if a
+  // real invocation is measured against it:
+  //   "limits": { "cpu_ms": 300000 }
 
   // Runtime secrets are not stored here. Set them once per environment:
   //   npx wrangler secret put ANTHROPIC_API_KEY

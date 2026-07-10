@@ -58,6 +58,8 @@ create table recipe_vault.recipes (
   cook_minutes  int,
   cuisine       text,
   tags          text[] not null default '{}',
+  -- The owner's own 1-5 rating; null is unrated, distinct from a low score.
+  rating        smallint check (rating between 1 and 5),
   notes         text,
   -- What the model had to infer, and why. Surfaced in the UI so the cook
   -- knows which parts of the recipe did not come from the source.

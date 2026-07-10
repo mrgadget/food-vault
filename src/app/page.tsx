@@ -125,7 +125,10 @@ export default async function HomePage({
                     <div className="h-20 w-20 shrink-0 rounded-lg border border-dashed border-stone-200" />
                   )}
                   <div className="min-w-0">
-                    <h2 className="font-medium">{recipe.title}</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-medium">{recipe.title}</h2>
+                      {recipe.rating !== null && <Stars value={recipe.rating} />}
+                    </div>
                     {recipe.description && (
                       <p className="mt-1 line-clamp-2 text-sm text-stone-600">{recipe.description}</p>
                     )}
@@ -231,5 +234,15 @@ function FilterRow({
         );
       })}
     </div>
+  );
+}
+
+/** Read-only rating for the listing. */
+function Stars({ value }: { value: number }) {
+  return (
+    <span className="shrink-0 text-sm text-amber-500" aria-label={`Rated ${value} of 5`}>
+      {"★".repeat(value)}
+      <span className="text-stone-300">{"★".repeat(5 - value)}</span>
+    </span>
   );
 }

@@ -138,6 +138,7 @@ export type RecipeSummary = {
   description: string | null;
   cuisine: string | null;
   course: string;
+  rating: number | null;
   servings: number | null;
   prep_minutes: number | null;
   cook_minutes: number | null;
@@ -171,7 +172,7 @@ export async function listRecipes(supabase: ServerClient): Promise<RecipeSummary
   const { data, error } = await supabase
     .from("recipes")
     .select(
-      "id, title, description, cuisine, course, servings, prep_minutes, cook_minutes, created_at, ingredients (category, canonical), recipe_images (kind, storage_path)",
+      "id, title, description, cuisine, course, rating, servings, prep_minutes, cook_minutes, created_at, ingredients (category, canonical), recipe_images (kind, storage_path)",
     )
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
@@ -180,6 +181,19 @@ export async function listRecipes(supabase: ServerClient): Promise<RecipeSummary
     const { recipe_images, ...rest } = row as typeof row & { recipe_images: ImageForHero[] };
     return { ...rest, heroPath: heroPathFrom(recipe_images) } as unknown as RecipeSummary;
   });
+}
+
+/** Set or clear the owner's rating. RLS scopes the update to the signed-in user. */
+export async function setRecipeRating(
+  supabase: ServerClient,
+  id: string,
+  rating: number | null,
+): Promise<void> {
+  if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) {
+    throw new Error("Rating must be a whole number from 1 to 5, or null.");
+  }
+  const { error } = await supabase.from("recipes").update({ rating }).eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 /**

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { DeleteRecipeButton } from "./delete-button";
+import { StarRating } from "./rating";
 import { ServingsScaler } from "./servings";
 import { getRecipe, signImageUrls } from "@/lib/db/recipes";
 import { createClient } from "@/lib/supabase/server";
@@ -93,6 +94,10 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
         <DeleteRecipeButton id={recipe.id} title={recipe.title} />
       </div>
       {recipe.description && <p className="mt-3 text-stone-600">{recipe.description}</p>}
+
+      <div className="mt-4">
+        <StarRating recipeId={recipe.id} initial={recipe.rating} />
+      </div>
 
       <p className="mt-4 text-xs uppercase tracking-wide text-stone-500">
         {[

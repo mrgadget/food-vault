@@ -1,17 +1,33 @@
 -- RecipeVault schema.
 -- Apply with: supabase db push, or paste into the Supabase SQL editor.
+--
+-- This is the first app in a shared Supabase project. The convention is one
+-- Postgres schema per app, named after the app. Nothing an app owns lives in
+-- `public`, so two apps can both have a `notes` table, or both need an enum
+-- called `source`, without ever knowing about each other.
+--
+-- What IS shared, deliberately:
+--   auth.users       one identity across every app, so one sign-in
+--   storage.objects  one object store, partitioned by bucket
+--
+-- After applying this, expose the schema to the API:
+--   Dashboard → Project Settings → API → Exposed schemas → add `recipe_vault`
+-- PostgREST will not see the tables otherwise.
 
-create extension if not exists "pgcrypto";
+create schema if not exists recipe_vault;
 
-create type recipe_source as enum ('url', 'photo', 'manual');
-create type image_kind as enum ('front', 'back', 'other');
+-- Enums are schema-scoped, so these names are ours alone.
+create type recipe_vault.recipe_source as enum ('url', 'photo', 'manual');
+create type recipe_vault.image_kind as enum ('front', 'back', 'other');
 
-create table recipes (
+-- gen_random_uuid() is in core Postgres since 13; no extension needed.
+
+create table recipe_vault.recipes (
   id            uuid primary key default gen_random_uuid(),
   user_id       uuid not null references auth.users (id) on delete cascade,
   title         text not null,
   description   text,
-  source        recipe_source not null,
+  source        recipe_vault.recipe_source not null,
   source_url    text,
   servings      int,
   prep_minutes  int,
@@ -26,9 +42,9 @@ create table recipes (
   updated_at    timestamptz not null default now()
 );
 
-create table ingredients (
+create table recipe_vault.ingredients (
   id            uuid primary key default gen_random_uuid(),
-  recipe_id     uuid not null references recipes (id) on delete cascade,
+  recipe_id     uuid not null references recipe_vault.recipes (id) on delete cascade,
   position      int not null,
   -- Null quantity is legitimate ("salt, to taste"), so it is not an error state.
   quantity      numeric,
@@ -40,9 +56,9 @@ create table ingredients (
   unique (recipe_id, position)
 );
 
-create table steps (
+create table recipe_vault.steps (
   id            uuid primary key default gen_random_uuid(),
-  recipe_id     uuid not null references recipes (id) on delete cascade,
+  recipe_id     uuid not null references recipe_vault.recipes (id) on delete cascade,
   position      int not null,
   text          text not null,
   inferred      boolean not null default false,
@@ -52,34 +68,41 @@ create table steps (
 -- Meal-kit services ship pre-mixed sachets ("Fajita Spice Blend"). Without the
 -- sachet the recipe is uncookable, so we store the model's breakdown of what
 -- is in it, keyed to the ingredient row it replaces.
-create table sachet_expansions (
+create table recipe_vault.sachet_expansions (
   id            uuid primary key default gen_random_uuid(),
-  recipe_id     uuid not null references recipes (id) on delete cascade,
-  ingredient_id uuid references ingredients (id) on delete cascade,
+  recipe_id     uuid not null references recipe_vault.recipes (id) on delete cascade,
+  ingredient_id uuid references recipe_vault.ingredients (id) on delete cascade,
   sachet_name   text not null,
   components    jsonb not null,
   confidence    text not null check (confidence in ('high', 'medium', 'low')),
   created_at    timestamptz not null default now()
 );
 
-create table recipe_images (
+create table recipe_vault.recipe_images (
   id            uuid primary key default gen_random_uuid(),
-  recipe_id     uuid not null references recipes (id) on delete cascade,
+  recipe_id     uuid not null references recipe_vault.recipes (id) on delete cascade,
   storage_path  text not null,
   position      int not null,
-  kind          image_kind not null default 'other',
+  kind          recipe_vault.image_kind not null default 'other',
   created_at    timestamptz not null default now(),
   unique (recipe_id, position)
 );
 
-create index on recipes (user_id, created_at desc);
-create index on ingredients (recipe_id);
-create index on steps (recipe_id);
-create index on sachet_expansions (recipe_id);
-create index on recipe_images (recipe_id);
+create index on recipe_vault.recipes (user_id, created_at desc);
+create index on recipe_vault.ingredients (recipe_id);
+create index on recipe_vault.steps (recipe_id);
+create index on recipe_vault.sachet_expansions (recipe_id);
+create index on recipe_vault.recipe_images (recipe_id);
 
-create or replace function touch_updated_at() returns trigger
-language plpgsql as $$
+-- Kept in our own schema rather than a shared one. Five lines duplicated per
+-- app is cheaper than a cross-app dependency that nobody owns. An empty
+-- search_path forces every reference inside to be schema-qualified, so this
+-- cannot be hijacked by a caller's search_path.
+create or replace function recipe_vault.touch_updated_at() returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
 begin
   new.updated_at = now();
   return new;
@@ -87,49 +110,73 @@ end;
 $$;
 
 create trigger recipes_touch_updated_at
-  before update on recipes
-  for each row execute function touch_updated_at();
+  before update on recipe_vault.recipes
+  for each row execute function recipe_vault.touch_updated_at();
 
 -- Row-level security: a user reaches only their own recipes. Child tables have
 -- no user_id of their own, so they authorize by joining back to the parent.
-alter table recipes           enable row level security;
-alter table ingredients       enable row level security;
-alter table steps             enable row level security;
-alter table sachet_expansions enable row level security;
-alter table recipe_images     enable row level security;
+alter table recipe_vault.recipes           enable row level security;
+alter table recipe_vault.ingredients       enable row level security;
+alter table recipe_vault.steps             enable row level security;
+alter table recipe_vault.sachet_expansions enable row level security;
+alter table recipe_vault.recipe_images     enable row level security;
 
-create policy "own recipes" on recipes
+create policy "own recipes" on recipe_vault.recipes
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
-create policy "own ingredients" on ingredients
+create policy "own ingredients" on recipe_vault.ingredients
   for all using (exists (
-    select 1 from recipes r where r.id = ingredients.recipe_id and r.user_id = auth.uid()
+    select 1 from recipe_vault.recipes r
+    where r.id = ingredients.recipe_id and r.user_id = auth.uid()
   ));
 
-create policy "own steps" on steps
+create policy "own steps" on recipe_vault.steps
   for all using (exists (
-    select 1 from recipes r where r.id = steps.recipe_id and r.user_id = auth.uid()
+    select 1 from recipe_vault.recipes r
+    where r.id = steps.recipe_id and r.user_id = auth.uid()
   ));
 
-create policy "own sachet expansions" on sachet_expansions
+create policy "own sachet expansions" on recipe_vault.sachet_expansions
   for all using (exists (
-    select 1 from recipes r where r.id = sachet_expansions.recipe_id and r.user_id = auth.uid()
+    select 1 from recipe_vault.recipes r
+    where r.id = sachet_expansions.recipe_id and r.user_id = auth.uid()
   ));
 
-create policy "own recipe images" on recipe_images
+create policy "own recipe images" on recipe_vault.recipe_images
   for all using (exists (
-    select 1 from recipes r where r.id = recipe_images.recipe_id and r.user_id = auth.uid()
+    select 1 from recipe_vault.recipes r
+    where r.id = recipe_images.recipe_id and r.user_id = auth.uid()
   ));
 
--- Private bucket. Images are served through short-lived signed URLs.
+-- Grants. RLS decides which ROWS a role may touch; grants decide whether the
+-- role may touch the table at all. `public` has these by default and a new
+-- schema does not, so without this block every request fails with
+-- "permission denied" no matter how permissive the policies are.
+--
+-- `anon` is granted nothing: RecipeVault has no public recipes, so an
+-- unauthenticated request should be refused at the table, not the row.
+grant usage on schema recipe_vault to authenticated;
+grant select, insert, update, delete
+  on all tables in schema recipe_vault to authenticated;
+
+-- Applies to tables added later, so a new migration cannot silently ship
+-- a table that PostgREST refuses to read.
+alter default privileges in schema recipe_vault
+  grant select, insert, update, delete on tables to authenticated;
+
+-- Storage is shared across every app in this project, partitioned by bucket,
+-- so bucket ids carry the app name. Private: images are served through
+-- short-lived signed URLs.
 insert into storage.buckets (id, name, public)
-values ('recipe-images', 'recipe-images', false)
+values ('recipe-vault-images', 'recipe-vault-images', false)
 on conflict (id) do nothing;
 
--- Objects are stored under <user_id>/<recipe_id>/<n>.jpg, so the first path
--- segment is the ownership check.
-create policy "own recipe image objects" on storage.objects
+-- Objects are stored under <user_id>/<batch_id>/<n>.jpg, so the first path
+-- segment is the ownership check. Scoped to our bucket: storage.objects is a
+-- shared table, and a policy that forgot `bucket_id` would grant access to
+-- every other app's files.
+create policy "own recipe-vault image objects" on storage.objects
   for all using (
-    bucket_id = 'recipe-images'
+    bucket_id = 'recipe-vault-images'
     and (storage.foldername(name))[1] = auth.uid()::text
   );

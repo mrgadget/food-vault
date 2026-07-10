@@ -25,7 +25,19 @@ Apply the database schema — paste `supabase/schema.sql` into the Supabase SQL 
 supabase db push
 ```
 
-That script creates the tables, the row-level security policies, and the private `recipe-images` storage bucket.
+Then expose the schema to the API: **Dashboard → Project Settings → API → Exposed schemas → add `recipe_vault`**. PostgREST will not see the tables otherwise, and every query returns an empty result rather than an error.
+
+## Sharing a Supabase project
+
+This app is the first of several sharing one Supabase project. The convention:
+
+- **One Postgres schema per app**, named after the app. RecipeVault owns `recipe_vault`. Nothing an app owns lives in `public`, so two apps can both have a `notes` table, or both need an enum called `source`, without colliding. Enums, functions and triggers are schema-scoped too — put them in the app's schema, not just the tables.
+- **A new schema has no grants.** `public` gets them by default; `recipe_vault` does not. Without the `grant` block at the foot of `schema.sql`, every request fails with "permission denied" no matter how permissive the RLS policies are. RLS decides which *rows* a role may touch; grants decide whether it may touch the table at all.
+- **`auth.users` is shared on purpose.** One identity across every app, so one sign-in. This is the thing that makes a shared project worth having, and the thing that makes splitting one apart later expensive — user IDs are foreign keys everywhere.
+- **Storage is shared and partitioned by bucket**, not by schema. Bucket ids carry the app name (`recipe-vault-images`), and every `storage.objects` policy must include a `bucket_id` check — `storage.objects` is one table for the whole project, so a policy that forgets it grants access to every other app's files.
+- **No shared utility schema.** `touch_updated_at()` lives in `recipe_vault`. Five duplicated lines per app is cheaper than a cross-app dependency nobody owns.
+
+`.mcp.json` configures a read-only Supabase MCP server scoped to this project. It holds a project ref and no credentials; authentication is OAuth, held outside the repo.
 
 ```bash
 npm run dev

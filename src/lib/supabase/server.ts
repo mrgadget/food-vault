@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+import { DB_SCHEMA } from "./schema";
+
+/** A client bound to this app's schema. Not interchangeable with a `public` one. */
+export type ServerClient = Awaited<ReturnType<typeof createClient>>;
+
 /**
  * Request-scoped client carrying the signed-in user's session. Every query it
  * makes is filtered by row-level security, so it can never reach another
@@ -13,6 +18,7 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      db: { schema: DB_SCHEMA },
       cookies: {
         getAll: () => cookieStore.getAll(),
         setAll: (toSet) => {

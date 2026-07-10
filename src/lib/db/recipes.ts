@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { ServerClient } from "@/lib/supabase/server";
 
 import type { Recipe } from "@/lib/schema";
 
@@ -13,7 +13,7 @@ export type SavedImage = { storagePath: string; kind: "front" | "back" | "other"
  * cascade cleans up whatever landed.
  */
 export async function saveRecipe(
-  supabase: SupabaseClient,
+  supabase: ServerClient,
   userId: string,
   recipe: Recipe,
   source: { source: "url" | "photo" | "manual"; sourceUrl?: string },
@@ -107,7 +107,7 @@ export async function saveRecipe(
   return recipeId;
 }
 
-export async function listRecipes(supabase: SupabaseClient) {
+export async function listRecipes(supabase: ServerClient) {
   const { data, error } = await supabase
     .from("recipes")
     .select("id, title, description, cuisine, servings, prep_minutes, cook_minutes, created_at")
@@ -116,7 +116,7 @@ export async function listRecipes(supabase: SupabaseClient) {
   return data;
 }
 
-export async function getRecipe(supabase: SupabaseClient, id: string) {
+export async function getRecipe(supabase: ServerClient, id: string) {
   const { data, error } = await supabase
     .from("recipes")
     .select(

@@ -45,16 +45,16 @@ export function ServingsScaler({
 
   return (
     <>
-      <section className="mt-10">
+      <section className="mt-10 rounded-card border border-line bg-surface p-6 shadow-sm">
         <div className="flex items-baseline justify-between gap-4">
-          <h2 className="text-lg font-semibold">Ingredients</h2>
+          <h2 className="font-display text-2xl font-semibold">Ingredients</h2>
           {scalable && (
-            <label className="flex items-center gap-2 text-sm text-stone-600">
+            <label className="flex items-center gap-2 text-sm text-muted">
               Serves
               <select
                 value={servings}
                 onChange={(event) => setServings(Number(event.target.value))}
-                className="rounded-md border border-stone-300 px-2 py-1"
+                className="rounded-lg border border-line bg-paper px-2.5 py-1.5 font-medium text-ink"
               >
                 {options.map((option) => (
                   <option key={option} value={option}>
@@ -67,22 +67,22 @@ export function ServingsScaler({
         </div>
 
         {factor !== 1 && (
-          <p className="mt-2 text-sm text-amber-800">
+          <p className="mt-2 text-sm text-accent">
             Amounts scaled {formatFactor(factor)} from {baseServings}. Cooking times and pan sizes
             are not — use judgement.
           </p>
         )}
 
-        <ul className="mt-4 space-y-2">
+        <ul className="mt-4 divide-y divide-line/70">
           {ingredients.map((ingredient) => (
-            <li key={ingredient.id} className="flex gap-2">
-              <span className="text-stone-500 tabular-nums">
+            <li key={ingredient.id} className="flex gap-3 py-2">
+              <span className="w-24 shrink-0 text-right font-medium tabular-nums text-accent">
                 {formatAmount(scale(ingredient.quantity, factor), ingredient.unit)}
               </span>
               <span>
                 {ingredient.item}
                 {ingredient.prep_note && (
-                  <span className="text-stone-500">, {ingredient.prep_note}</span>
+                  <span className="text-muted">, {ingredient.prep_note}</span>
                 )}
                 {ingredient.inferred && <InferredBadge />}
               </span>
@@ -93,21 +93,21 @@ export function ServingsScaler({
 
       {sachets.length > 0 && (
         <section className="mt-10">
-          <h2 className="text-lg font-semibold">If you don&apos;t have the spice sachets</h2>
-          <p className="mt-1 text-sm text-stone-600">
+          <h2 className="font-display text-2xl font-semibold">If you don&apos;t have the spice sachets</h2>
+          <p className="mt-1 text-sm text-muted">
             Our best reconstruction of each pre-mixed blend, scaled to this recipe.
           </p>
-          <div className="mt-4 space-y-4">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {sachets.map((sachet) => (
-              <div key={sachet.id} className="rounded-lg border border-stone-200 p-4">
-                <p className="flex items-center gap-2 font-medium">
+              <div key={sachet.id} className="rounded-card border border-line bg-surface p-5 shadow-sm">
+                <p className="flex flex-wrap items-center gap-2 font-medium">
                   {sachet.sachet_name}
                   <Confidence level={sachet.confidence} />
                 </p>
-                <ul className="mt-2 space-y-1 text-sm">
+                <ul className="mt-3 space-y-1.5 text-sm">
                   {sachet.components.map((component) => (
-                    <li key={component.item} className="flex gap-2">
-                      <span className="text-stone-500 tabular-nums">
+                    <li key={component.item} className="flex gap-3">
+                      <span className="w-20 shrink-0 text-right tabular-nums text-accent">
                         {formatAmount(scale(component.quantity, factor), component.unit)}
                       </span>
                       <span>{component.item}</span>
@@ -153,7 +153,7 @@ function InferredBadge() {
   return (
     <span
       title="Not stated in the original recipe"
-      className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase tracking-wide text-amber-800"
+      className="ml-2 rounded bg-accent-soft px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase tracking-wide text-accent"
     >
       added
     </span>
@@ -163,8 +163,8 @@ function InferredBadge() {
 function Confidence({ level }: { level: "high" | "medium" | "low" }) {
   const tone = {
     high: "bg-emerald-100 text-emerald-800",
-    medium: "bg-amber-100 text-amber-800",
-    low: "bg-stone-200 text-stone-700",
+    medium: "bg-accent-soft text-accent",
+    low: "bg-line text-muted",
   }[level];
   return (
     <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${tone}`}>

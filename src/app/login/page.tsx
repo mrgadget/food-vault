@@ -62,13 +62,13 @@ export default function LoginPage() {
 
   if (confirmSent) {
     return (
-      <div className="max-w-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">Confirm your email</h1>
-        <p className="mt-3 text-stone-600">
+      <div className="mx-auto max-w-md rounded-card border border-line bg-surface p-8 shadow-sm">
+        <h1 className="font-display text-2xl font-semibold tracking-tight">Confirm your email</h1>
+        <p className="mt-3 text-muted">
           We sent a confirmation link to{" "}
-          <span className="font-medium text-stone-900">{email}</span>. Click it, then sign in.
+          <span className="font-medium text-ink">{email}</span>. Click it, then sign in.
         </p>
-        <p className="mt-4 text-sm text-stone-500">
+        <p className="mt-4 text-sm text-muted">
           Not what you wanted? Turn off <span className="font-medium">Confirm email</span> under
           Authentication → Sign In / Providers in the Supabase dashboard, and accounts will be
           usable the moment they are created.
@@ -78,12 +78,15 @@ export default function LoginPage() {
   }
 
   return (
-    <form onSubmit={submit} className="max-w-sm">
-      <h1 className="text-2xl font-semibold tracking-tight">
-        {mode === "signin" ? "Sign in" : "Create an account"}
+    <form onSubmit={submit} className="mx-auto max-w-md rounded-card border border-line bg-surface p-8 shadow-sm">
+      <h1 className="font-display text-3xl font-semibold tracking-tight">
+        {mode === "signin" ? "Welcome back" : "Create an account"}
       </h1>
+      <p className="mt-1.5 text-muted">
+        {mode === "signin" ? "Sign in to your recipe vault." : "Start saving recipes in one place."}
+      </p>
 
-      <label htmlFor="email" className="mt-6 block text-sm font-medium">
+      <label htmlFor="email" className="mt-7 block text-sm font-medium">
         Email
       </label>
       <input
@@ -93,7 +96,7 @@ export default function LoginPage() {
         autoComplete="email"
         value={email}
         onChange={(event) => setEmail(event.target.value)}
-        className="mt-2 w-full rounded-lg border border-stone-300 px-4 py-3"
+        className="mt-2 w-full rounded-lg border border-line bg-paper px-4 py-3 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20"
       />
 
       <label htmlFor="password" className="mt-4 block text-sm font-medium">
@@ -108,10 +111,10 @@ export default function LoginPage() {
         autoComplete={mode === "signin" ? "current-password" : "new-password"}
         value={password}
         onChange={(event) => setPassword(event.target.value)}
-        className="mt-2 w-full rounded-lg border border-stone-300 px-4 py-3"
+        className="mt-2 w-full rounded-lg border border-line bg-paper px-4 py-3 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20"
       />
       {mode === "signup" && (
-        <p className="mt-2 text-sm text-stone-500">At least {MIN_PASSWORD} characters.</p>
+        <p className="mt-2 text-sm text-muted">At least {MIN_PASSWORD} characters.</p>
       )}
 
       {error && <p className="mt-4 text-sm text-red-700">{error}</p>}
@@ -119,12 +122,12 @@ export default function LoginPage() {
       <button
         type="submit"
         disabled={busy || !email || !password}
-        className="mt-6 w-full rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-40"
+        className="mt-6 w-full rounded-full bg-accent px-5 py-3 text-sm font-medium text-accent-fg shadow-sm transition-transform hover:-translate-y-px disabled:opacity-40 disabled:hover:translate-y-0"
       >
         {busy ? "…" : mode === "signin" ? "Sign in" : "Create account"}
       </button>
 
-      <p className="mt-6 text-sm text-stone-600">
+      <p className="mt-6 text-sm text-muted">
         {mode === "signin" ? "No account yet?" : "Already have an account?"}{" "}
         <button
           type="button"
@@ -132,7 +135,7 @@ export default function LoginPage() {
             setMode(mode === "signin" ? "signup" : "signin");
             setError(null);
           }}
-          className="font-medium text-amber-700 underline"
+          className="font-medium text-accent hover:underline"
         >
           {mode === "signin" ? "Create one" : "Sign in"}
         </button>

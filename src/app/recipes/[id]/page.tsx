@@ -79,41 +79,53 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
 
   const blocks = toBlocks(recipe.steps as StepRow[], photoByStepId);
 
+  const meta = [
+    recipe.course !== "other" ? recipe.course : null,
+    recipe.cuisine,
+    recipe.servings && `Serves ${recipe.servings}`,
+    recipe.prep_minutes && `${recipe.prep_minutes} min prep`,
+    recipe.cook_minutes && `${recipe.cook_minutes} min cook`,
+  ].filter((value): value is string => Boolean(value));
+
   return (
-    <article>
+    <article className="mx-auto max-w-3xl">
       {heroUrl && (
         /* eslint-disable-next-line @next/next/no-img-element */
         <img
           src={heroUrl}
           alt=""
-          className="mb-6 max-h-72 w-full rounded-xl border border-stone-200 object-cover"
+          className="mb-8 max-h-80 w-full rounded-card object-cover shadow-md"
         />
       )}
       <div className="flex items-start justify-between gap-4">
-        <h1 className="text-3xl font-semibold tracking-tight">{recipe.title}</h1>
+        <h1 className="font-display text-4xl font-semibold leading-tight tracking-tight">
+          {recipe.title}
+        </h1>
         <DeleteRecipeButton id={recipe.id} title={recipe.title} />
       </div>
-      {recipe.description && <p className="mt-3 text-stone-600">{recipe.description}</p>}
+      {recipe.description && <p className="mt-3 text-lg text-muted">{recipe.description}</p>}
 
-      <div className="mt-4">
+      <div className="mt-5">
         <StarRating recipeId={recipe.id} initial={recipe.rating} />
       </div>
 
-      <p className="mt-4 text-xs uppercase tracking-wide text-stone-500">
-        {[
-          recipe.cuisine,
-          recipe.servings && `Serves ${recipe.servings}`,
-          recipe.prep_minutes && `${recipe.prep_minutes} min prep`,
-          recipe.cook_minutes && `${recipe.cook_minutes} min cook`,
-        ]
-          .filter(Boolean)
-          .join(" · ")}
-      </p>
+      {meta.length > 0 && (
+        <div className="mt-5 flex flex-wrap gap-2">
+          {meta.map((item) => (
+            <span
+              key={item}
+              className="rounded-full bg-surface px-3 py-1 text-sm capitalize text-muted ring-1 ring-line"
+            >
+              {item}
+            </span>
+          ))}
+        </div>
+      )}
 
       {recipe.ai_notes && (
-        <aside className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">
-          <p className="font-medium text-amber-900">What we filled in</p>
-          <p className="mt-1 text-amber-900/80">{recipe.ai_notes}</p>
+        <aside className="mt-8 rounded-card border border-accent/20 bg-accent-soft/60 p-5">
+          <p className="text-sm font-semibold uppercase tracking-wide text-accent">What we filled in</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-ink/80">{recipe.ai_notes}</p>
         </aside>
       )}
 
@@ -123,36 +135,34 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
         sachets={recipe.sachet_expansions as SachetRow[]}
       />
 
-      <section className="mt-10">
-        <h2 className="text-lg font-semibold">Method</h2>
-        <ol className="mt-4 space-y-6">
+      <section className="mt-12">
+        <h2 className="font-display text-2xl font-semibold">Method</h2>
+        <ol className="mt-5 space-y-7">
           {blocks.map((block, index) => (
             <li key={block.major.id} className="flex gap-4">
-              <span className="shrink-0 pt-0.5 text-sm font-semibold text-amber-700 tabular-nums">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-soft font-display text-sm font-semibold text-accent tabular-nums">
                 {index + 1}
               </span>
               {/* `overflow-hidden` contains the floated photograph so the next
                   step starts below it rather than wrapping around it. */}
-              <div className="min-w-0 flex-1 overflow-hidden">
+              <div className="min-w-0 flex-1 overflow-hidden pt-0.5">
                 {block.photo && (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img
                     src={block.photo}
                     alt=""
-                    className="mb-2 ml-4 w-28 rounded-lg border border-stone-200 bg-white sm:float-right sm:w-40"
+                    className="mb-2 ml-4 w-28 rounded-xl shadow-sm sm:float-right sm:w-44"
                   />
                 )}
-                <p className={block.minors.length > 0 ? "font-medium" : undefined}>
+                <p className={block.minors.length > 0 ? "font-medium" : "leading-relaxed"}>
                   <Emphasised text={block.major.text} />
                   {block.major.inferred && <InferredBadge />}
                 </p>
                 {block.minors.length > 0 && (
-                  <ul className="mt-2 space-y-1.5 text-stone-700">
+                  <ul className="mt-2.5 space-y-2 text-ink/80">
                     {block.minors.map((minor) => (
-                      <li key={minor.id} className="flex gap-2">
-                        <span aria-hidden className="text-stone-400">
-                          •
-                        </span>
+                      <li key={minor.id} className="flex gap-2.5 leading-relaxed">
+                        <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-accent/50" />
                         <span>
                           <Emphasised text={minor.text} />
                           {minor.inferred && <InferredBadge />}
@@ -168,10 +178,10 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
       </section>
 
       {(recipe.source_url || sourceUrl) && (
-        <footer className="mt-12 border-t border-stone-200 pt-4 text-sm text-stone-500">
+        <footer className="mt-14 border-t border-line pt-5 text-sm text-muted">
           {sourceUrl && (
             <p>
-              <a href={sourceUrl} className="underline" rel="noreferrer noopener">
+              <a href={sourceUrl} className="text-accent hover:underline" rel="noreferrer noopener">
                 View the original card
               </a>{" "}
               — archived when this recipe was imported.
@@ -180,7 +190,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
           {recipe.source_url && (
             <p className={sourceUrl ? "mt-1" : undefined}>
               Imported from{" "}
-              <a href={recipe.source_url} className="underline" rel="noreferrer noopener">
+              <a href={recipe.source_url} className="text-accent hover:underline" rel="noreferrer noopener">
                 {new URL(recipe.source_url).hostname}
               </a>
               {/* Meal-kit card ids are reused across menu weeks, so this link
@@ -218,7 +228,7 @@ function InferredBadge() {
   return (
     <span
       title="Not stated in the original recipe"
-      className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase tracking-wide text-amber-800"
+      className="ml-2 rounded bg-accent-soft px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase tracking-wide text-accent"
     >
       added
     </span>

@@ -4,8 +4,8 @@
   "description": "Collect recipes from the web and from photos of recipe cards.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#faf7f2",
-  "theme_color": "#faf7f2",
+  "background_color": "#faf7f1",
+  "theme_color": "#faf7f1",
   "icons": [
     {
       "src": "/icon.svg",

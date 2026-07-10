@@ -33,12 +33,16 @@ export default async function HomePage({
 
   if (!auth.user) {
     return (
-      <p className="text-stone-600">
-        Sign in to see your recipes.{" "}
-        <Link href="/login" className="text-amber-700 underline">
+      <div className="mx-auto max-w-md rounded-card border border-line bg-surface p-10 text-center shadow-sm">
+        <p className="font-display text-2xl font-semibold">Your recipe vault</p>
+        <p className="mt-2 text-muted">Sign in to see everything you&apos;ve saved.</p>
+        <Link
+          href="/login"
+          className="mt-6 inline-block rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-paper shadow-sm transition-transform hover:-translate-y-px"
+        >
           Sign in
         </Link>
-      </p>
+      </div>
     );
   }
 
@@ -47,14 +51,14 @@ export default async function HomePage({
 
   if (recipes.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-stone-300 p-10 text-center">
-        <h1 className="text-xl font-semibold">Nothing in the vault yet</h1>
-        <p className="mt-2 text-stone-600">
+      <div className="rounded-card border border-dashed border-line bg-surface/60 p-14 text-center">
+        <h1 className="font-display text-2xl font-semibold">Nothing in the vault yet</h1>
+        <p className="mx-auto mt-2 max-w-sm text-muted">
           Import a recipe from a URL, or photograph the front and back of a recipe card.
         </p>
         <Link
           href="/import"
-          className="mt-6 inline-block rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white"
+          className="mt-6 inline-block rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-accent-fg shadow-sm transition-transform hover:-translate-y-px"
         >
           Add your first recipe
         </Link>
@@ -83,66 +87,91 @@ export default async function HomePage({
 
   return (
     <>
-      <h1 className="text-2xl font-semibold tracking-tight">Your recipes</h1>
+      <div className="flex items-baseline justify-between gap-4">
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Your recipes</h1>
+        <span className="text-sm text-muted">
+          {visible.length === recipes.length
+            ? `${recipes.length} recipe${recipes.length === 1 ? "" : "s"}`
+            : `${visible.length} of ${recipes.length}`}
+        </span>
+      </div>
 
-      <FilterRow label="Course" param="course" search={{ course, protein, vegetable }} options={courses} />
-      <FilterRow
-        label="Protein"
-        param="protein"
-        search={{ course, protein, vegetable }}
-        options={proteins}
-        extra={[NO_PROTEIN]}
-      />
-      <FilterRow
-        label="Vegetable"
-        param="vegetable"
-        search={{ course, protein, vegetable }}
-        options={vegetables}
-      />
+      <div className="mt-6 space-y-2.5 rounded-card border border-line bg-surface/70 p-4">
+        <FilterRow label="Course" param="course" search={{ course, protein, vegetable }} options={courses} />
+        <FilterRow
+          label="Protein"
+          param="protein"
+          search={{ course, protein, vegetable }}
+          options={proteins}
+          extra={[NO_PROTEIN]}
+        />
+        <FilterRow
+          label="Vegetable"
+          param="vegetable"
+          search={{ course, protein, vegetable }}
+          options={vegetables}
+        />
+      </div>
 
       {visible.length === 0 ? (
-        <p className="mt-10 text-stone-600">
+        <p className="mt-12 text-center text-muted">
           No recipes match those filters.{" "}
-          <Link href="/" className="text-amber-700 underline">
+          <Link href="/" className="font-medium text-accent hover:underline">
             Clear them
           </Link>
         </p>
       ) : (
-        <ul className="mt-6 divide-y divide-stone-200">
+        <ul className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {visible.map((recipe) => {
             const heroUrl = recipe.heroPath ? heroUrls.get(recipe.heroPath) : undefined;
+            const meta = [
+              recipe.cuisine,
+              recipe.servings && `Serves ${recipe.servings}`,
+              recipe.prep_minutes && `${recipe.prep_minutes} min prep`,
+              recipe.cook_minutes && `${recipe.cook_minutes} min cook`,
+            ].filter(Boolean);
+
             return (
               <li key={recipe.id}>
-                <Link href={`/recipes/${recipe.id}`} className="flex gap-4 py-4">
-                  {heroUrl ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={heroUrl}
-                      alt=""
-                      className="h-20 w-20 shrink-0 rounded-lg border border-stone-200 object-cover"
-                    />
-                  ) : (
-                    <div className="h-20 w-20 shrink-0 rounded-lg border border-dashed border-stone-200" />
-                  )}
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h2 className="font-medium">{recipe.title}</h2>
-                      {recipe.rating !== null && <Stars value={recipe.rating} />}
-                    </div>
-                    {recipe.description && (
-                      <p className="mt-1 line-clamp-2 text-sm text-stone-600">{recipe.description}</p>
+                <Link
+                  href={`/recipes/${recipe.id}`}
+                  className="group flex h-full flex-col overflow-hidden rounded-card border border-line bg-surface shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  <div className="relative aspect-[4/3] overflow-hidden bg-accent-soft">
+                    {heroUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={heroUrl}
+                        alt=""
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                      />
+                    ) : (
+                      <span className="flex h-full w-full items-center justify-center font-display text-4xl font-semibold text-accent/40">
+                        {recipe.title.slice(0, 1).toUpperCase()}
+                      </span>
                     )}
-                    <p className="mt-2 text-xs uppercase tracking-wide text-stone-500">
-                      {[
-                        recipe.course !== "other" ? recipe.course : null,
-                        recipe.cuisine,
-                        recipe.servings && `Serves ${recipe.servings}`,
-                        recipe.prep_minutes && `${recipe.prep_minutes} min prep`,
-                        recipe.cook_minutes && `${recipe.cook_minutes} min cook`,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </p>
+                    {recipe.course !== "other" && (
+                      <span className="absolute left-3 top-3 rounded-full bg-paper/90 px-2.5 py-1 text-xs font-medium capitalize text-ink shadow-sm backdrop-blur-sm">
+                        {recipe.course}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex flex-1 flex-col p-4">
+                    <h2 className="font-display text-lg font-semibold leading-snug">{recipe.title}</h2>
+                    {recipe.rating !== null && (
+                      <div className="mt-1">
+                        <Stars value={recipe.rating} />
+                      </div>
+                    )}
+                    {recipe.description && (
+                      <p className="mt-1.5 line-clamp-2 text-sm text-muted">{recipe.description}</p>
+                    )}
+                    {meta.length > 0 && (
+                      <p className="mt-auto pt-3 text-xs uppercase tracking-wide text-muted">
+                        {meta.join(" · ")}
+                      </p>
+                    )}
                   </div>
                 </Link>
               </li>
@@ -153,6 +182,7 @@ export default async function HomePage({
     </>
   );
 }
+
 
 /** Distinct canonical names in a category, across every recipe. */
 function facet(recipes: RecipeSummary[], category: string): string[] {
@@ -207,8 +237,8 @@ function FilterRow({
   const choices = [...extra, ...options];
 
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-2">
-      <span className="text-xs font-medium uppercase tracking-wide text-stone-500">{label}</span>
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="w-16 shrink-0 text-xs font-medium uppercase tracking-wide text-muted">{label}</span>
       {choices.map((choice) => {
         const active = selected === choice;
         // Toggling one filter must not silently drop the other.
@@ -223,10 +253,10 @@ function FilterRow({
           <Link
             key={choice}
             href={query ? `/?${query}` : "/"}
-            className={`rounded-full border px-3 py-1 text-sm ${
+            className={`rounded-full border px-3 py-1 text-sm capitalize transition-colors ${
               active
-                ? "border-stone-900 bg-stone-900 text-white"
-                : "border-stone-300 text-stone-700 hover:border-stone-400"
+                ? "border-accent bg-accent text-accent-fg"
+                : "border-line bg-surface text-ink hover:border-accent/50"
             }`}
           >
             {choice}
@@ -240,9 +270,9 @@ function FilterRow({
 /** Read-only rating for the listing. */
 function Stars({ value }: { value: number }) {
   return (
-    <span className="shrink-0 text-sm text-amber-500" aria-label={`Rated ${value} of 5`}>
+    <span className="shrink-0 text-sm tracking-tight text-accent" aria-label={`Rated ${value} of 5`}>
       {"★".repeat(value)}
-      <span className="text-stone-300">{"★".repeat(5 - value)}</span>
+      <span className="text-line">{"★".repeat(5 - value)}</span>
     </span>
   );
 }

@@ -12,10 +12,10 @@ export default function ImportPage() {
   const [tab, setTab] = useState<Tab>("url");
 
   return (
-    <>
-      <h1 className="text-2xl font-semibold tracking-tight">Add a recipe</h1>
+    <div className="mx-auto max-w-xl">
+      <h1 className="font-display text-3xl font-semibold tracking-tight">Add a recipe</h1>
 
-      <div className="mt-6 flex gap-1 rounded-lg bg-stone-100 p-1">
+      <div className="mt-6 flex gap-1 rounded-full border border-line bg-surface p-1">
         <TabButton active={tab === "url"} onClick={() => setTab("url")}>
           From a link
         </TabButton>
@@ -24,8 +24,10 @@ export default function ImportPage() {
         </TabButton>
       </div>
 
-      <div className="mt-8">{tab === "url" ? <UrlImport /> : <PhotoImport />}</div>
-    </>
+      <div className="mt-8 rounded-card border border-line bg-surface p-6 shadow-sm">
+        {tab === "url" ? <UrlImport /> : <PhotoImport />}
+      </div>
+    </div>
   );
 }
 
@@ -42,8 +44,8 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex-1 rounded-md px-4 py-2 text-sm font-medium ${
-        active ? "bg-white shadow-sm" : "text-stone-600"
+      className={`flex-1 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+        active ? "bg-ink text-paper shadow-sm" : "text-muted hover:text-ink"
       }`}
     >
       {children}
@@ -119,16 +121,16 @@ function UrlImport() {
         value={url}
         onChange={(event) => setUrl(event.target.value)}
         placeholder="https://www.hellofresh.co.nz/recipecards/card/…"
-        className="mt-2 w-full rounded-lg border border-stone-300 px-4 py-3"
+        className="mt-2 w-full rounded-lg border border-line bg-paper px-4 py-3 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20"
       />
-      <p className="mt-2 text-sm text-stone-500">
+      <p className="mt-2 text-sm text-muted">
         A recipe page, or a link straight to a recipe-card PDF. We read it, pull out the recipe,
         and fill in anything it leaves unsaid.
       </p>
 
       {duplicate && (
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm">
-          <p className="text-amber-900">
+        <div className="mt-4 rounded-card border border-accent/20 bg-accent-soft/60 p-4 text-sm">
+          <p className="text-ink">
             You already have{" "}
             <span className="font-medium">
               {duplicate.count > 1 ? `${duplicate.count} recipes` : `“${duplicate.title}”`}
@@ -139,14 +141,14 @@ function UrlImport() {
             <button
               type="button"
               onClick={() => run("replace")}
-              className="rounded-full bg-stone-900 px-4 py-1.5 font-medium text-white"
+              className="rounded-full bg-accent px-4 py-1.5 font-medium text-accent-fg shadow-sm"
             >
               {duplicate.count > 1 ? "Replace them" : "Replace it"}
             </button>
             <button
               type="button"
               onClick={() => run("skip")}
-              className="rounded-full border border-stone-300 px-4 py-1.5 text-stone-700"
+              className="rounded-full border border-line bg-surface px-4 py-1.5 text-ink"
             >
               Skip
             </button>
@@ -160,7 +162,7 @@ function UrlImport() {
         <button
           type="submit"
           disabled={busy || !url}
-          className="mt-6 rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-40"
+          className="mt-6 rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-accent-fg shadow-sm transition-transform hover:-translate-y-px disabled:opacity-40 disabled:hover:translate-y-0"
         >
           {status ?? "Import"}
         </button>
@@ -238,12 +240,12 @@ function PhotoImport() {
 
   return (
     <form onSubmit={submit}>
-      <p className="text-sm text-stone-600">
+      <p className="text-sm text-muted">
         Photograph the whole card. For a meal-kit card that means the front and the back — the
         ingredients and the instructions are rarely on the same side.
       </p>
 
-      <label className="mt-4 flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-stone-300 px-4 py-10 text-sm font-medium text-stone-600">
+      <label className="mt-4 flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-line px-4 py-10 text-sm font-medium text-muted transition-colors hover:border-accent/50 hover:bg-accent-soft/30">
         <input
           type="file"
           accept="image/*"
@@ -261,13 +263,13 @@ function PhotoImport() {
       {shots.length > 0 && (
         <ul className="mt-6 space-y-3">
           {shots.map((shot, index) => (
-            <li key={shot.preview} className="flex items-center gap-4 rounded-lg border border-stone-200 p-3">
+            <li key={shot.preview} className="flex items-center gap-4 rounded-lg border border-line bg-paper p-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={shot.preview} alt="" className="h-16 w-16 rounded object-cover" />
               <select
                 value={shot.kind}
                 onChange={(event) => setKind(index, event.target.value as Shot["kind"])}
-                className="rounded-md border border-stone-300 px-2 py-1.5 text-sm"
+                className="rounded-md border border-line bg-surface px-2 py-1.5 text-sm"
               >
                 <option value="front">Front</option>
                 <option value="back">Back</option>
@@ -276,7 +278,7 @@ function PhotoImport() {
               <button
                 type="button"
                 onClick={() => remove(index)}
-                className="ml-auto text-sm text-stone-500 underline"
+                className="ml-auto text-sm text-muted underline"
               >
                 Remove
               </button>
@@ -290,7 +292,7 @@ function PhotoImport() {
       <button
         type="submit"
         disabled={busy || shots.length === 0}
-        className="mt-6 rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-40"
+        className="mt-6 rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-accent-fg shadow-sm transition-transform hover:-translate-y-px disabled:opacity-40 disabled:hover:translate-y-0"
       >
         {status ?? `Import ${shots.length || ""} photo${shots.length === 1 ? "" : "s"}`}
       </button>

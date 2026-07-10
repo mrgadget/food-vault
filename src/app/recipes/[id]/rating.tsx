@@ -45,13 +45,13 @@ export function StarRating({ recipeId, initial }: { recipeId: string; initial: n
             onClick={() => set(star === rating ? null : star)}
             onMouseEnter={() => setHover(star)}
             aria-label={`${star} star${star === 1 ? "" : "s"}`}
-            className="p-0.5 text-2xl leading-none"
+            className="p-0.5 text-2xl leading-none transition-transform hover:scale-110"
           >
-            <span className={star <= shown ? "text-amber-500" : "text-stone-300"}>★</span>
+            <span className={star <= shown ? "text-accent" : "text-line"}>★</span>
           </button>
         ))}
       </div>
-      {rating !== null && <span className="text-sm text-stone-500">{rating}/5</span>}
+      {rating !== null && <span className="text-sm text-muted">{rating}/5</span>}
       {error && <span className="text-sm text-red-700">Couldn&apos;t save</span>}
     </div>
   );

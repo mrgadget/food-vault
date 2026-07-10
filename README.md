@@ -58,7 +58,18 @@ Set the runtime secret once per environment:
 npx wrangler secret put ANTHROPIC_API_KEY
 ```
 
-`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are inlined into the client bundle at build time, so they belong in the **build** environment (`.env.local`, or build variables in CI) rather than in `wrangler.jsonc`.
+### Where secrets may and may not live
+
+**Never put a secret in a `.env` file.** OpenNext compiles every mode's `.env` files into `.open-next/cloudflare/next-env.mjs` and ships it inside the Worker script. A key in `.env.local` — or in `.env.development.local`, which production never reads — is uploaded to Cloudflare in plaintext regardless.
+
+| Value | Local | Production |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | `.dev.vars` | `wrangler secret put` |
+| `NEXT_PUBLIC_SUPABASE_*` | `.env.local` | build-time variables |
+
+`.dev.vars` is Wrangler's own secrets file and is never compiled into the bundle. `wrangler dev` reads it directly; `next dev` reads it through `next.config.ts`, because plain `next dev` does not, and `getCloudflareContext()` does not expose it there either. `src/lib/server-env.ts` resolves a value from `process.env` first, then from the Worker's bindings.
+
+`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are inlined into the client bundle by `next build`, so they belong in the **build** environment rather than in `wrangler.jsonc`. That is by design: the anon key is meant to be public, and row-level security is what protects the data.
 
 Two Cloudflare-specific constraints shape the code:
 

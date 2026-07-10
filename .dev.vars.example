@@ -1,0 +1,5 @@
+# Wrangler's secrets file. Read by `wrangler dev` and, via next.config.ts, by
+# `next dev`. Never compiled into the Worker bundle — unlike .env files.
+#
+# Copy to .dev.vars (gitignored) and fill in.
+ANTHROPIC_API_KEY=sk-ant-...

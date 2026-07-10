@@ -1,5 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 
+import { serverEnv } from "@/lib/server-env";
+
+export class MissingApiKey extends Error {}
+
+export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
+
 /**
  * Overridable so a bulk import can trade accuracy for cost without a deploy.
  *
@@ -13,34 +19,35 @@ import Anthropic from "@anthropic-ai/sdk";
  * awkward ones — a two-and-four-serving layout where the wrong column is still
  * a plausible recipe — and a wrong quantity is a failure nobody notices until
  * they are cooking.
+ *
+ * Read lazily: a Worker's bindings do not exist until a request arrives, so a
+ * value captured at module scope is whatever the isolate saw at cold start.
  */
-export const MODEL = process.env.EXTRACTION_MODEL ?? "claude-opus-4-8";
-export const EFFORT = (process.env.EXTRACTION_EFFORT ?? "high") as
-  | "low"
-  | "medium"
-  | "high"
-  | "xhigh"
-  | "max";
+export function model(): string {
+  return serverEnv("EXTRACTION_MODEL") ?? "claude-opus-4-8";
+}
 
-export class MissingApiKey extends Error {}
+export function effort(): Effort {
+  return (serverEnv("EXTRACTION_EFFORT") as Effort | undefined) ?? "high";
+}
 
 /**
- * Built per request, not at module scope.
+ * Built per request, not at module scope, for the same reason.
  *
  * Node hands you a populated `process.env` when the module is first imported.
- * Workers does not — bindings and secrets arrive with the request, and the
- * adapter only populates `process.env` once it is inside a request context. A
- * client constructed at import time can therefore capture an undefined key and
- * hold it for the life of the isolate, which fails on the edge and never
- * locally. Constructing per request costs nothing; the SDK is a thin wrapper
- * over `fetch`.
+ * Workers does not — bindings and secrets arrive with the request. A client
+ * constructed at import time can capture an undefined key and hold it for the
+ * life of the isolate, which fails on the edge and never locally. Constructing
+ * per request costs nothing; the SDK is a thin wrapper over `fetch`.
  */
 export function anthropic(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = serverEnv("ANTHROPIC_API_KEY");
   if (!apiKey) {
-    // Deliberately not a UserFacingError subclass carrying config detail to the
-    // browser — but distinct enough in the log to end an afternoon.
-    throw new MissingApiKey("ANTHROPIC_API_KEY is not set in this environment.");
+    // Not a UserFacingError: the browser learns nothing about our config, and
+    // the log line is distinct enough to end an afternoon.
+    throw new MissingApiKey(
+      "ANTHROPIC_API_KEY is not set. Bind it with `wrangler secret put` in production, or add it to .dev.vars locally.",
+    );
   }
   return new Anthropic({ apiKey });
 }

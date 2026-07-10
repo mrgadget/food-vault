@@ -1,7 +1,7 @@
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type Anthropic from "@anthropic-ai/sdk";
 
-import { anthropic, EFFORT, MODEL } from "./client";
+import { anthropic, effort, model } from "./client";
 import {
   EXTRACTION_SYSTEM_PROMPT,
   PDF_USER_PROMPT,
@@ -22,14 +22,14 @@ export class ExtractionTruncated extends UserFacingError {}
 
 async function extract(content: Anthropic.ContentBlockParam[]): Promise<Recipe> {
   const response = await anthropic().messages.parse({
-    model: MODEL,
+    model: model(),
     max_tokens: 16000,
     system: EXTRACTION_SYSTEM_PROMPT,
     // Sachet breakdowns and gap-filling are the parts worth thinking about;
     // transcription is not.
     thinking: { type: "adaptive" },
     output_config: {
-      effort: EFFORT,
+      effort: effort(),
       format: zodOutputFormat(recipeSchema),
     },
     messages: [{ role: "user", content }],

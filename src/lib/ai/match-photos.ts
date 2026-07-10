@@ -2,7 +2,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 
-import { anthropic } from "./client";
+import { anthropic, model } from "./client";
 import type { PdfImage } from "@/lib/import/pdf-images";
 import type { Recipe } from "@/lib/schema";
 
@@ -56,7 +56,7 @@ export async function matchPhotosToSteps(
   });
 
   const response = await anthropic().messages.parse({
-    model: "claude-opus-4-8",
+    model: model(),
     max_tokens: 4000,
     thinking: { type: "adaptive" },
     // Recognising a pan of mince is not hard; the reasoning is in the refusals.

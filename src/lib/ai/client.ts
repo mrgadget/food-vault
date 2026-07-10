@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-import { serverEnv } from "@/lib/server-env";
+import { describeEnv, serverEnv } from "@/lib/server-env";
 
 export class MissingApiKey extends Error {}
 
@@ -43,10 +43,12 @@ export function effort(): Effort {
 export function anthropic(): Anthropic {
   const apiKey = serverEnv("ANTHROPIC_API_KEY");
   if (!apiKey) {
-    // Not a UserFacingError: the browser learns nothing about our config, and
-    // the log line is distinct enough to end an afternoon.
+    // Not a UserFacingError: the message is logged server-side and the browser
+    // only ever gets the generic scrubbed reply. The key-name dump (no values)
+    // says whether the Worker sees any bindings at all, and under what names —
+    // the difference between an unbound secret and a mistyped one.
     throw new MissingApiKey(
-      "ANTHROPIC_API_KEY is not set. Bind it with `wrangler secret put` in production, or add it to .dev.vars locally.",
+      `ANTHROPIC_API_KEY is not set. Bind it with \`wrangler secret put\` in production, or add it to .dev.vars locally. Visible — ${describeEnv()}`,
     );
   }
   return new Anthropic({ apiKey });

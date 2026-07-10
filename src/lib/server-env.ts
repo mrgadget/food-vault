@@ -29,3 +29,27 @@ export function serverEnv(name: string): string | undefined {
     return undefined;
   }
 }
+
+/**
+ * The names — never the values — of the variables and secrets the running
+ * process can see, from both lookup sources.
+ *
+ * For diagnosing a missing binding from a log line: it distinguishes "the
+ * Worker has no bindings at all" from "the binding is there under a different
+ * name" from "the context is unreachable", which the bare lookup cannot. Values
+ * are never included, so this is safe to log.
+ */
+export function describeEnv(): string {
+  const fromProcess = Object.keys(process.env).sort();
+
+  let fromContext: string[] | string;
+  try {
+    fromContext = Object.keys(getCloudflareContext().env as Record<string, unknown>).sort();
+  } catch {
+    fromContext = "unavailable (not under the Cloudflare adapter)";
+  }
+
+  return `process.env keys: [${fromProcess.join(", ")}]; cloudflare context keys: ${
+    Array.isArray(fromContext) ? `[${fromContext.join(", ")}]` : fromContext
+  }`;
+}

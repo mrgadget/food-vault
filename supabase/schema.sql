@@ -43,6 +43,9 @@ create type recipe_vault.recipe_course as enum (
   'dessert', 'baking', 'snack', 'drink', 'sauce', 'other'
 );
 
+-- Which measurement system a reader is shown. Amounts are stored metric.
+create type recipe_vault.unit_system as enum ('metric', 'imperial');
+
 -- gen_random_uuid() is in core Postgres since 13; no extension needed.
 
 create table recipe_vault.recipes (
@@ -223,6 +226,22 @@ grant select, insert, update, delete
 -- a table that PostgREST refuses to read.
 alter default privileges in schema recipe_vault
   grant select, insert, update, delete on tables to authenticated;
+
+-- Per-user preferences. One row each; amounts are stored metric and this only
+-- chooses which system the reader is shown. Declared after the grants so the
+-- default privilege above already covers it.
+create table recipe_vault.user_settings (
+  user_id     uuid primary key references auth.users (id) on delete cascade,
+  unit_system recipe_vault.unit_system not null default 'metric',
+  updated_at  timestamptz not null default now()
+);
+
+alter table recipe_vault.user_settings enable row level security;
+
+create policy "own settings" on recipe_vault.user_settings
+  for all to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
 
 -- Storage is shared across every app in this project, partitioned by bucket,
 -- so bucket ids carry the app name. Private: images are served through

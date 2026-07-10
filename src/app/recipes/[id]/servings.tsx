@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { displayAmount, type UnitSystem } from "@/lib/units";
+
 type Ingredient = {
   id: string;
   quantity: number | null;
@@ -26,10 +28,12 @@ export function ServingsScaler({
   baseServings,
   ingredients,
   sachets,
+  system,
 }: {
   baseServings: number | null;
   ingredients: Ingredient[];
   sachets: Sachet[];
+  system: UnitSystem;
 }) {
   const [servings, setServings] = useState(baseServings ?? 0);
 
@@ -37,6 +41,11 @@ export function ServingsScaler({
   // denominator. Show the amounts as written.
   const scalable = baseServings !== null && baseServings > 0;
   const factor = scalable ? servings / baseServings : 1;
+
+  // Scale in the stored (metric) unit, then hand off to displayAmount, which
+  // converts to the reader's system, rounds, and writes fractions.
+  const amount = (quantity: number | null, unit: string | null) =>
+    displayAmount(quantity === null ? null : quantity * factor, unit, system);
 
   // Always offer the recipe's own figure, even if it is an odd number.
   const options = scalable
@@ -77,7 +86,7 @@ export function ServingsScaler({
           {ingredients.map((ingredient) => (
             <li key={ingredient.id} className="flex gap-3 py-2">
               <span className="w-24 shrink-0 text-right font-medium tabular-nums text-accent">
-                {formatAmount(scale(ingredient.quantity, factor), ingredient.unit)}
+                {amount(ingredient.quantity, ingredient.unit)}
               </span>
               <span>
                 {ingredient.item}
@@ -108,7 +117,7 @@ export function ServingsScaler({
                   {sachet.components.map((component) => (
                     <li key={component.item} className="flex gap-3">
                       <span className="w-20 shrink-0 text-right tabular-nums text-accent">
-                        {formatAmount(scale(component.quantity, factor), component.unit)}
+                        {amount(component.quantity, component.unit)}
                       </span>
                       <span>{component.item}</span>
                     </li>
@@ -123,30 +132,9 @@ export function ServingsScaler({
   );
 }
 
-/** A null quantity is "to taste", which does not scale. */
-function scale(quantity: number | null, factor: number): number | null {
-  if (quantity === null) return null;
-  const scaled = quantity * factor;
-
-  // Keep small amounts precise and large ones tidy: 0.375 tsp matters, 187.5g
-  // of mince does not.
-  if (scaled < 1) return round(scaled, 3);
-  if (scaled < 10) return round(scaled, 2);
-  return round(scaled, 0);
-}
-
-function round(value: number, places: number): number {
-  const power = 10 ** places;
-  return Math.round(value * power) / power;
-}
-
-function formatAmount(quantity: number | null, unit: string | null): string {
-  if (quantity === null) return unit ?? "";
-  return unit ? `${quantity} ${unit}` : String(quantity);
-}
-
 function formatFactor(factor: number): string {
-  return factor > 1 ? `up ${round(factor, 2)}×` : `down to ${round(factor, 2)}×`;
+  const rounded = Math.round(factor * 100) / 100;
+  return factor > 1 ? `up ${rounded}×` : `down to ${rounded}×`;
 }
 
 function InferredBadge() {

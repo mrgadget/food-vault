@@ -4,7 +4,9 @@ import { DeleteRecipeButton } from "./delete-button";
 import { StarRating } from "./rating";
 import { ServingsScaler } from "./servings";
 import { getRecipe, signImageUrls } from "@/lib/db/recipes";
+import { getUnitSystem } from "@/lib/db/settings";
 import { createClient } from "@/lib/supabase/server";
+import { convertTemperatures, type UnitSystem } from "@/lib/units";
 
 type SachetComponent = { item: string; quantity: number | null; unit: string | null };
 
@@ -42,9 +44,20 @@ type Block = { major: StepRow; minors: StepRow[]; photo?: string };
  * major above it. A source that never had a hierarchy is all majors, and falls
  * out of this as a plain numbered list.
  */
-function toBlocks(steps: StepRow[], photoByStepId: Map<string, string>): Block[] {
+function toBlocks(
+  steps: StepRow[],
+  photoByStepId: Map<string, string>,
+  system: UnitSystem,
+): Block[] {
+  // Oven temperatures are stored in Celsius; convert them in the text for an
+  // imperial reader before the steps are grouped and rendered.
+  const withTemps = steps.map((step) => ({
+    ...step,
+    text: convertTemperatures(step.text, system),
+  }));
+
   const blocks: Block[] = [];
-  for (const step of steps) {
+  for (const step of withTemps) {
     if (step.kind === "minor" && blocks.length > 0) {
       blocks[blocks.length - 1].minors.push(step);
       continue;
@@ -62,6 +75,8 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
   const recipe = await getRecipe(supabase, id);
   if (!recipe) notFound();
 
+  const system = await getUnitSystem(supabase);
+
   const images = recipe.recipe_images as ImageRow[];
   const signed = await signImageUrls(supabase, images.map((image) => image.storage_path));
 
@@ -77,7 +92,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
     images.find((image) => image.kind === "hero") ?? images.find((image) => image.kind === "front");
   const heroUrl = heroImage ? signed.get(heroImage.storage_path) : undefined;
 
-  const blocks = toBlocks(recipe.steps as StepRow[], photoByStepId);
+  const blocks = toBlocks(recipe.steps as StepRow[], photoByStepId, system);
 
   const meta = [
     recipe.course !== "other" ? recipe.course : null,
@@ -133,6 +148,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
         baseServings={recipe.servings}
         ingredients={recipe.ingredients as IngredientRow[]}
         sachets={recipe.sachet_expansions as SachetRow[]}
+        system={system}
       />
 
       <section className="mt-12">

@@ -37,6 +37,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </Link>
             {auth.user ? (
               <div className="flex items-center gap-5">
+                <Link href="/settings" className="text-sm text-muted transition-colors hover:text-ink">
+                  Settings
+                </Link>
                 <SignOutButton />
                 <Link
                   href="/import"

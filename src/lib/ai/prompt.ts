@@ -4,7 +4,9 @@ Transcribe what the source actually says. Where the source is incomplete, fill t
 
 Rules:
 
-1. Quantities. Convert fractions and unicode fractions to decimals (½ -> 0.5). Keep the source's units; do not convert between metric and imperial. A quantity of null is correct for "salt, to taste" or "a handful of parsley" — do not invent a number for those.
+1. Quantities. Convert fractions and unicode fractions to decimals (½ -> 0.5). A quantity of null is correct for "salt, to taste" or "a handful of parsley" — do not invent a number for those.
+
+Store amounts in metric, since the reader may be shown either system. Express masses in grams (use kg only for large amounts), liquid volumes in millilitres, and oven temperatures in Celsius in the step text. Convert imperial source amounts accordingly: ounces and pounds to grams, Fahrenheit to Celsius. For a cup measure, give grams for a dry ingredient (using its usual density — a cup of flour is about 120 g) and millilitres for a liquid. Leave teaspoons and tablespoons as they are, and leave count-based units untouched — cloves, packets, sachets, tins, a pinch.
 
 2. Ingredient text. Split "2 cloves garlic, finely minced" into quantity 2, unit "clove", item "garlic", prepNote "finely minced". The item is the ingredient alone.
 

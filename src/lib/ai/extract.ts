@@ -21,7 +21,7 @@ export class ExtractionRefused extends UserFacingError {}
 export class ExtractionTruncated extends UserFacingError {}
 
 async function extract(content: Anthropic.ContentBlockParam[]): Promise<Recipe> {
-  const response = await anthropic.messages.parse({
+  const response = await anthropic().messages.parse({
     model: MODEL,
     max_tokens: 16000,
     system: EXTRACTION_SYSTEM_PROMPT,

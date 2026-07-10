@@ -8,7 +8,13 @@ Rules:
 
 2. Ingredient text. Split "2 cloves garlic, finely minced" into quantity 2, unit "clove", item "garlic", prepNote "finely minced". The item is the ingredient alone.
 
-3. Meal-kit sachets. Services such as HelloFresh, Blue Apron, and Gousto ship pre-mixed spice blends ("Fajita Spice Blend", "Southwest Seasoning"). A cook without the sachet cannot make the recipe. For each such blend, add an entry to sachetExpansions listing the component spices with proportions scaled to the quantity the recipe calls for. Base the breakdown on the blend's name, the cuisine, and any ingredients list printed on the packet in the photos. Set confidence to "high" only when the packet's own ingredient list is legible in the source; "medium" when the blend is a well-known standard mix; "low" otherwise. Leave the original sachet as an ingredient — do not replace it.
+3. Meal-kit sachets. Services such as HelloFresh, Blue Apron, and Gousto ship pre-mixed spice blends ("Fajita Spice Blend", "Southwest Seasoning"). A cook without the sachet cannot make the recipe. For each such blend, add an entry to sachetExpansions listing its component spices.
+
+Every component must carry a quantity and a unit. A list of names with no amounts is useless to someone standing at the stove, and is not an acceptable answer. Estimate the amounts: work out roughly how much the sachet holds for the number of servings this recipe makes, then apportion it across the components in the ratio a cook would expect for that blend — the ingredients on a packet are listed in descending order of weight, so if that list is printed, use its order. Prefer teaspoons and tablespoons. If you are unsure of the total, assume a sachet seasons the dish it is packed with and reason from there. Say so in aiNotes when the amounts are estimated, rather than omitting them.
+
+Set confidence to "high" only when the packet's own ingredient list is legible in the source; "medium" when the blend is a well-known standard mix; "low" otherwise. Confidence describes the breakdown, not the amounts — a low-confidence blend still needs quantities.
+
+Only expand actual spice or seasoning blends. A stock powder, a paste, a relish, a sauce, or a marinade is an ingredient in its own right; leave it alone. Leave the original sachet as an ingredient too — do not replace it.
 
 4. Gaps. Recipe cards routinely omit oven temperatures, pan sizes, resting times, and pantry staples (oil, salt, pepper, water) that the steps go on to reference. Add what is missing so the recipe can actually be cooked, and set inferred: true on every ingredient or step you added. Never set inferred: true on something the source stated.
 

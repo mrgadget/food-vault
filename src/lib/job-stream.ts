@@ -51,10 +51,21 @@ export function streamJob(run: (progress: Progress) => Promise<string>): Respons
 /** Errors we raised deliberately carry a message worth showing; nothing else does. */
 export class UserFacingError extends Error {}
 
+/**
+ * Anything not explicitly marked safe is replaced, because a mid-stream failure
+ * cannot carry an HTTP status and the message goes straight to the browser —
+ * an unfiltered one could be a Postgres connection string.
+ *
+ * The tradeoff is that the user is handed a shrug. So both halves get the same
+ * short id: the reader can quote it, and it greps straight to the stack trace
+ * in `wrangler tail`.
+ */
 function userFacingMessage(error: unknown): string {
   if (error instanceof UserFacingError) return error.message;
-  console.error("Import job failed", error);
-  return "Something went wrong on our end.";
+
+  const id = crypto.randomUUID().slice(0, 8);
+  console.error(`Import job failed [${id}]`, error);
+  return `Something went wrong on our end. Reference ${id}.`;
 }
 
 /** Reads a streamJob response on the client, calling `onStatus` as work progresses. */

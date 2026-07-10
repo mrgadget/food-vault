@@ -134,7 +134,8 @@ export default async function HomePage({
                         recipe.course !== "other" ? recipe.course : null,
                         recipe.cuisine,
                         recipe.servings && `Serves ${recipe.servings}`,
-                        totalTime(recipe.prep_minutes, recipe.cook_minutes),
+                        recipe.prep_minutes && `${recipe.prep_minutes} min prep`,
+                        recipe.cook_minutes && `${recipe.cook_minutes} min cook`,
                       ]
                         .filter(Boolean)
                         .join(" · ")}
@@ -231,9 +232,4 @@ function FilterRow({
       })}
     </div>
   );
-}
-
-function totalTime(prep: number | null, cook: number | null): string | null {
-  const total = (prep ?? 0) + (cook ?? 0);
-  return total > 0 ? `${total} min` : null;
 }

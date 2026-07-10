@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { extractFromPage, ExtractionRefused } from "@/lib/ai/extract";
+import { extractFromPage } from "@/lib/ai/extract";
 import { saveRecipe } from "@/lib/db/recipes";
-import { fetchPageText, FetchFailed } from "@/lib/import/fetch-page";
+import { fetchPageText } from "@/lib/import/fetch-page";
+import { streamJob } from "@/lib/job-stream";
 import { createClient } from "@/lib/supabase/server";
-
-// Fetch + a high-effort extraction runs well past the default serverless limit.
-export const maxDuration = 300;
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -21,19 +19,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "A url is required." }, { status: 400 });
   }
 
-  try {
+  // Everything above fails fast with a real status code. Everything below is
+  // slow, so it streams — see lib/job-stream.
+  return streamJob(async (progress) => {
+    progress("Fetching the page…");
     const pageText = await fetchPageText(url);
+
+    progress("Reading the recipe…");
     const recipe = await extractFromPage(url, pageText);
-    const id = await saveRecipe(supabase, auth.user.id, recipe, { source: "url", sourceUrl: url });
-    return NextResponse.json({ id });
-  } catch (error) {
-    if (error instanceof FetchFailed) {
-      return NextResponse.json({ error: error.message }, { status: 422 });
-    }
-    if (error instanceof ExtractionRefused) {
-      return NextResponse.json({ error: error.message }, { status: 422 });
-    }
-    console.error("URL import failed", error);
-    return NextResponse.json({ error: "Could not import that recipe." }, { status: 500 });
-  }
+
+    progress("Saving…");
+    return saveRecipe(supabase, auth.user.id, recipe, { source: "url", sourceUrl: url });
+  });
 }

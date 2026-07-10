@@ -1,9 +1,11 @@
 import * as cheerio from "cheerio";
 
+import { UserFacingError } from "@/lib/job-stream";
+
 const MAX_BYTES = 3_000_000;
 const MAX_TEXT_CHARS = 60_000;
 
-export class FetchFailed extends Error {}
+export class FetchFailed extends UserFacingError {}
 
 /**
  * Fetch a page and reduce it to the text a recipe extractor cares about.

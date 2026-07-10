@@ -11,3 +11,9 @@ next-env.d.ts
 
 .DS_Store
 *.log
+
+# Cloudflare
+.open-next/
+.wrangler/
+cloudflare-env.d.ts
+.dev.vars

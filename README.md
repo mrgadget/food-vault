@@ -10,7 +10,7 @@ Collect recipes from anywhere and read them back in a form you can actually cook
 
 ## Stack
 
-Next.js 15 (App Router) · Supabase (Postgres, Storage, Auth) · Claude Opus 4.8 · Tailwind 4
+Next.js 15 (App Router) · Supabase (Postgres, Storage, Auth) · Claude Opus 4.8 · Tailwind 4 · Cloudflare Workers via OpenNext
 
 ## Setup
 
@@ -30,6 +30,30 @@ That script creates the tables, the row-level security policies, and the private
 ```bash
 npm run dev
 ```
+
+## Deploying to Cloudflare
+
+The app runs as a Worker via [OpenNext](https://opennext.js.org/cloudflare).
+
+```bash
+npm run preview   # build the Worker and run it locally on workerd
+npm run deploy    # build and ship it
+```
+
+Set the runtime secret once per environment:
+
+```bash
+npx wrangler secret put ANTHROPIC_API_KEY
+```
+
+`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are inlined into the client bundle at build time, so they belong in the **build** environment (`.env.local`, or build variables in CI) rather than in `wrangler.jsonc`.
+
+Two Cloudflare-specific constraints shape the code:
+
+- **Requests must produce bytes early.** A high-effort vision extraction can run for minutes, and Cloudflare closes a proxied request that has sent nothing. Both import endpoints therefore stream newline-delimited JSON (`src/lib/job-stream.ts`): authentication and validation fail fast with real status codes, then progress lines flush immediately and the outcome arrives on the last line. A failed import can return HTTP 200 — clients must read the final event, not `response.ok`.
+- **`limits.cpu_ms` is raised to 300s**, which requires a paid Workers plan. Almost none of that is real CPU; the extraction is spent waiting on the Anthropic API. The default 30s ceiling is about base64 and JSON work.
+
+If imports ever outgrow a single request, the next step is Cloudflare Queues: enqueue the job, return immediately, and let the recipe appear in the list when it lands.
 
 ## How extraction works
 

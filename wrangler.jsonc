@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "recipe-vault",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-09-23",
+  // Required by the Next.js server runtime and the Anthropic SDK.
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  },
+  // A vision extraction spends almost all of its time waiting on the Anthropic
+  // API, which costs no CPU. This ceiling covers the base64 and JSON work
+  // around it. Requires a paid Workers plan; the default is 30s.
+  "limits": {
+    "cpu_ms": 300000
+  }
+
+  // Runtime secrets are not stored here. Set them once per environment:
+  //   npx wrangler secret put ANTHROPIC_API_KEY
+  //
+  // NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are inlined
+  // into the client bundle at build time, so they must be present in the
+  // build environment (.env.local locally, build vars in CI) rather than here.
+}

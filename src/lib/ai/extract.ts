@@ -3,6 +3,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 
 import { anthropic, MODEL } from "./client";
 import { EXTRACTION_SYSTEM_PROMPT, PHOTO_USER_PROMPT, URL_USER_PROMPT } from "./prompt";
+import { UserFacingError } from "@/lib/job-stream";
 import { recipeSchema, type Recipe } from "@/lib/schema";
 
 export type ImageInput = {
@@ -10,7 +11,8 @@ export type ImageInput = {
   mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif";
 };
 
-export class ExtractionRefused extends Error {}
+export class ExtractionRefused extends UserFacingError {}
+export class ExtractionTruncated extends UserFacingError {}
 
 async function extract(content: Anthropic.ContentBlockParam[]): Promise<Recipe> {
   const response = await anthropic.messages.parse({
@@ -31,7 +33,7 @@ async function extract(content: Anthropic.ContentBlockParam[]): Promise<Recipe> 
     throw new ExtractionRefused("The model declined to process this source.");
   }
   if (response.stop_reason === "max_tokens") {
-    throw new Error("The recipe was too long to extract in one pass.");
+    throw new ExtractionTruncated("That recipe was too long to extract in one pass.");
   }
   if (!response.parsed_output) {
     throw new Error("The model returned no structured recipe.");

@@ -1,10 +1,10 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  experimental: {
-    // Photo imports post several multi-megabyte images in one request.
-    serverActions: { bodySizeLimit: "25mb" },
-  },
-};
+const nextConfig: NextConfig = {};
 
 export default nextConfig;
+
+// Makes Cloudflare bindings and secrets available to `next dev`. No-op in
+// production, where the Worker supplies them directly.
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+initOpenNextCloudflareForDev();

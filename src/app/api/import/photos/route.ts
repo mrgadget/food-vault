@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { extractFromImages, ExtractionRefused, type ImageInput } from "@/lib/ai/extract";
+import { extractFromImages, type ImageInput } from "@/lib/ai/extract";
 import { saveRecipe, type SavedImage } from "@/lib/db/recipes";
+import { streamJob } from "@/lib/job-stream";
 import { createClient } from "@/lib/supabase/server";
-
-export const maxDuration = 300;
 
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
 const MAX_IMAGES = 8;
@@ -39,26 +38,29 @@ export async function POST(request: Request) {
     }
   }
 
-  const buffers = await Promise.all(files.map(async (file) => Buffer.from(await file.arrayBuffer())));
-  const images: ImageInput[] = buffers.map((buffer, i) => ({
-    base64: buffer.toString("base64"),
-    mediaType: files[i].type as Accepted,
-  }));
+  const buffers = await Promise.all(files.map(async (file) => new Uint8Array(await file.arrayBuffer())));
 
-  try {
-    // Extract before uploading. A refusal or a photo of something that is not a
-    // recipe then costs no storage and leaves nothing to clean up.
+  return streamJob(async (progress) => {
+    const images: ImageInput[] = buffers.map((bytes, i) => ({
+      base64: toBase64(bytes),
+      mediaType: files[i].type as Accepted,
+    }));
+
+    // Extract before uploading. A refusal, or a photo of something that is not
+    // a recipe, then costs no storage and leaves nothing to clean up.
+    progress(files.length > 1 ? `Reading ${files.length} photos…` : "Reading the photo…");
     const recipe = await extractFromImages(images);
 
+    progress("Saving the photos…");
     const batchId = crypto.randomUUID();
     const uploaded: SavedImage[] = [];
     try {
-      for (const [i, buffer] of buffers.entries()) {
+      for (const [i, bytes] of buffers.entries()) {
         const extension = files[i].type.split("/")[1];
         const storagePath = `${auth.user.id}/${batchId}/${i}.${extension}`;
         const { error } = await supabase.storage
           .from("recipe-images")
-          .upload(storagePath, buffer, { contentType: files[i].type, upsert: false });
+          .upload(storagePath, bytes, { contentType: files[i].type, upsert: false });
         if (error) throw new Error(error.message);
         uploaded.push({ storagePath, kind: normalizeKind(kinds[i]) });
       }
@@ -67,17 +69,24 @@ export async function POST(request: Request) {
       throw error;
     }
 
-    const id = await saveRecipe(supabase, auth.user.id, recipe, { source: "photo" }, uploaded);
-    return NextResponse.json({ id });
-  } catch (error) {
-    if (error instanceof ExtractionRefused) {
-      return NextResponse.json({ error: error.message }, { status: 422 });
-    }
-    console.error("Photo import failed", error);
-    return NextResponse.json({ error: "Could not read a recipe from those photos." }, { status: 500 });
-  }
+    progress("Saving the recipe…");
+    return saveRecipe(supabase, auth.user.id, recipe, { source: "photo" }, uploaded);
+  });
 }
 
 function normalizeKind(value: string | undefined): SavedImage["kind"] {
   return value === "front" || value === "back" ? value : "other";
+}
+
+/**
+ * Workers has no Buffer, and spreading a 10MB array into String.fromCharCode
+ * blows the argument limit. Chunk it.
+ */
+function toBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(binary);
 }

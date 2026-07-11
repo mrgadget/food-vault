@@ -140,7 +140,9 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
       {recipe.ai_notes && (
         <aside className="mt-8 rounded-card border border-accent/20 bg-accent-soft/60 p-5">
           <p className="text-sm font-semibold uppercase tracking-wide text-accent">What we filled in</p>
-          <p className="mt-1.5 text-sm leading-relaxed text-ink/80">{recipe.ai_notes}</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-ink/80">
+            {convertTemperatures(recipe.ai_notes, system)}
+          </p>
         </aside>
       )}
 

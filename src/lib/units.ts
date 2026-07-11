@@ -136,13 +136,39 @@ function emit(base: number, dim: "mass" | "volume", system: UnitSystem): { quant
 }
 
 /**
- * Convert oven temperatures written into step text. Storage is Celsius, so this
- * only fires for an imperial reader. Matches "220°C", "220 C", "220 degrees C".
+ * Convert oven temperatures written into free text to the reader's system.
+ *
+ * Bidirectional on purpose: newer recipes store Celsius, but ones imported
+ * before metric normalisation hold Fahrenheit, so a reader must be able to see
+ * either turned into their own — no re-import required. Matches "220°C",
+ * "220 C", "350°F", "350 degrees F".
+ *
+ * A plausible-oven-range guard keeps it from mistaking a cup abbreviation
+ * ("2 C flour") or a stray letter for a temperature.
  */
 export function convertTemperatures(text: string, system: UnitSystem): string {
-  if (system === "metric") return text;
-  return text.replace(/(\d+)\s*(?:°\s*C|degrees?\s+C(?:elsius)?)\b/gi, (_match, celsius) => {
-    const fahrenheit = Math.round((Number(celsius) * 9) / 5 + 32);
-    return `${fahrenheit}°F`;
-  });
+  return text.replace(
+    /(\d{2,3})\s*(?:°\s*|degrees?\s+)?([CF])(?:elsius|ahrenheit)?\b/gi,
+    (match, value, letter) => {
+      const n = Number(value);
+      const isCelsius = letter.toUpperCase() === "C";
+      // Wide enough for a meat-probe temperature (74°C / 165°F), not so wide it
+      // mistakes a stray number for one. Two-plus digits already rules out a
+      // cup abbreviation ("2 C flour").
+      const looksLikeTemp = isCelsius ? n >= 40 && n <= 300 : n >= 100 && n <= 550;
+      if (!looksLikeTemp) return match;
+
+      if (system === "metric") {
+        if (isCelsius) return match;
+        return `${round5((n - 32) * 5 / 9)}°C`;
+      }
+      if (!isCelsius) return match;
+      return `${round5((n * 9) / 5 + 32)}°F`;
+    },
+  );
+}
+
+/** Oven temperatures are round numbers; snap conversions to the nearest 5. */
+function round5(value: number): number {
+  return Math.round(value / 5) * 5;
 }

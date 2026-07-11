@@ -99,10 +99,10 @@ export async function extractStepPhotos(pdf: Uint8Array): Promise<PdfImage[]> {
  * card, and the one extractStepPhotos skips for being too big. Here that size
  * is the whole point.
  *
- * Returned undecoded on purpose. The cover is ~10 megapixels of Adobe CMYK, and
- * decoding that in JavaScript needs ~170MB of buffers — more than a Worker's
- * 128MB isolate has. The resize is handed to the Cloudflare Images binding
- * instead (see lib/import/images.ts), which runs outside the isolate's memory.
+ * Returned undecoded on purpose. The cover is ~9 megapixels of Adobe CMYK, and
+ * decoding it whole needs ~200MB of buffers — more than a Worker's 128MB
+ * isolate has. decodeCoverToJpeg (see lib/import/cover-hero.ts) reads only each
+ * block's DC coefficient, reconstructing a small hero within the isolate.
  *
  * Returns null when no image is large enough to be a cover — a plain photo of
  * a printed page has no hero.

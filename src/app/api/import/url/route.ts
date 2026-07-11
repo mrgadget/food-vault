@@ -4,7 +4,7 @@ import { extractFromSource } from "@/lib/ai/extract";
 import { matchPhotosToSteps } from "@/lib/ai/match-photos";
 import { deleteRecipe, findRecipesBySourceUrl, saveRecipe, type SavedImage } from "@/lib/db/recipes";
 import { fetchImage, fetchSource, type Source } from "@/lib/import/fetch-page";
-import { resizeToHero } from "@/lib/import/images";
+import { decodeCoverToJpeg } from "@/lib/import/cover-hero";
 import { extractStepPhotos, findCoverBytes } from "@/lib/import/pdf-images";
 import { streamJob, type Progress } from "@/lib/job-stream";
 import { IMAGE_BUCKET } from "@/lib/supabase/schema";
@@ -76,17 +76,16 @@ async function webHero(
   const fetched = await fetchImage(source.heroUrl);
   if (!fetched) return [];
 
-  // Downscale through the Images binding when it is available; otherwise store
-  // the fetched image as-is — a web hero is already a browser-displayable RGB
-  // format, so the original is a fine fallback.
-  const hero = (await resizeToHero(fetched.bytes)) ?? { bytes: fetched.bytes, mimeType: fetched.mimeType };
-  const storagePath = `${userId}/${crypto.randomUUID()}/hero.${extensionFor(hero.mimeType)}`;
+  // A web page's lead photo is already a browser-displayable RGB format, and
+  // the pages show it with object-cover, so it is stored as-is and sized down
+  // in the browser rather than re-encoded here.
+  const storagePath = `${userId}/${crypto.randomUUID()}/hero.${extensionFor(fetched.mimeType)}`;
   const { error } = await supabase.storage
     .from(IMAGE_BUCKET)
-    .upload(storagePath, hero.bytes, { contentType: hero.mimeType, upsert: false });
+    .upload(storagePath, fetched.bytes, { contentType: fetched.mimeType, upsert: false });
   if (error) throw new Error(error.message);
 
-  return [{ storagePath, kind: "hero", mimeType: hero.mimeType }];
+  return [{ storagePath, kind: "hero", mimeType: fetched.mimeType }];
 }
 
 function extensionFor(mimeType: string): string {
@@ -132,13 +131,23 @@ async function archiveCard(
       mimeType: "application/pdf",
     });
 
+    // The cover is Adobe CMYK and far too big to decode whole in the isolate;
+    // decodeCoverToJpeg reads only each block's DC to build a small hero. A
+    // format it can't handle throws — a card without a usable cover is fine.
     const coverBytes = await findCoverBytes(pdf);
-    const hero = coverBytes ? await resizeToHero(coverBytes) : null;
+    let hero: Uint8Array | null = null;
+    if (coverBytes) {
+      try {
+        hero = decodeCoverToJpeg(coverBytes);
+      } catch (error) {
+        console.error("Cover hero decode failed", error);
+      }
+    }
     if (hero) {
       uploads.push({
-        storagePath: await upload("hero.jpg", hero.bytes, hero.mimeType),
+        storagePath: await upload("hero.jpg", hero, "image/jpeg"),
         kind: "hero",
-        mimeType: hero.mimeType,
+        mimeType: "image/jpeg",
       });
     }
 

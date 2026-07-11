@@ -1,28 +1,30 @@
 import jpeg from "jpeg-js";
 
 /**
- * Decode a meal-kit card's cover photograph to a small hero JPEG, using only
- * the DC coefficient of each 8×8 block.
+ * Decode a meal-kit card's cover photograph to a small hero JPEG, reading only
+ * the low-frequency content of each 8×8 block.
  *
  * The cover is ~9 megapixels of Adobe inverted-CMYK (YCCK). A full decode needs
  * ~200MB of buffers — more than a Worker's 128MB isolate — and the Cloudflare
  * Images binding renders the inverted CMYK as a colour negative. Neither works.
  *
- * A baseline JPEG stores each 8×8 block's average brightness in its DC
- * coefficient, so reading just the DCs reconstructs the image at 1/8 scale
- * (~435px wide here) for a few megabytes of memory — small, correct, and well
- * within the isolate. The AC coefficients are still walked past to stay aligned
- * with the bitstream, but never stored.
+ * A baseline JPEG is a grid of 8×8 blocks, each a small inverse DCT. Rather than
+ * reconstruct every block to full 8×8 resolution (the expensive part), this
+ * reconstructs each to just 2×2 — the average of each of its four quadrants,
+ * which is a linear combination of the block's DCT coefficients. That yields a
+ * quarter-resolution image (~870px wide here) with proper area-averaging, for a
+ * few megabytes, entirely within the isolate. A block is processed and thrown
+ * away before the next is read, so only one block of coefficients is ever live.
  *
  * Supports the format these cards actually use: baseline (SOF0/1), 8-bit, no
  * chroma subsampling. Anything else throws, and the caller simply stores no
  * hero rather than a wrong one.
  */
 export function decodeCoverToJpeg(bytes: Uint8Array): Uint8Array {
-  const { blocksW, blocksH, planes, components, adobeTransform } = decodeDc(bytes);
-  const rgba = new Uint8Array(blocksW * blocksH * 4);
+  const { width, height, planes, components, adobeTransform } = decodeScaled(bytes);
+  const rgba = new Uint8Array(width * height * 4);
 
-  for (let i = 0; i < blocksW * blocksH; i++) {
+  for (let i = 0; i < width * height; i++) {
     const [r, g, b] = toRgb(planes, i, components, adobeTransform);
     const o = i * 4;
     rgba[o] = r;
@@ -31,7 +33,7 @@ export function decodeCoverToJpeg(bytes: Uint8Array): Uint8Array {
     rgba[o + 3] = 255;
   }
 
-  return jpeg.encode({ data: rgba, width: blocksW, height: blocksH }, 85).data;
+  return jpeg.encode({ data: rgba, width, height }, 85).data;
 }
 
 function clamp(v: number): number {
@@ -39,7 +41,7 @@ function clamp(v: number): number {
 }
 
 /**
- * One block-average sample per component → an RGB pixel.
+ * One reconstructed sample per component → an RGB pixel.
  *
  * Four components is Adobe YCCK: the first three are YCbCr that convert to the
  * inverted CMY channels (255 − ink), and the fourth is black, stored inverted
@@ -75,6 +77,39 @@ function toRgb(
   return [clamp(r), clamp(g), clamp(b)];
 }
 
+// Zig-zag scan order → natural (row-major) block index, per the JPEG spec.
+const ZIGZAG = new Int32Array([
+  0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5,
+  12, 19, 26, 33, 40, 48, 41, 34, 27, 20, 13, 6, 7, 14, 21, 28,
+  35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51,
+  58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63,
+]);
+
+/**
+ * Averaging weights: QUAD_W[q][k] is the mean, over the four sample positions of
+ * output-half q, of the k-th 1D inverse-DCT basis. A block quadrant's average is
+ * the separable product of these across the two dimensions, so two of them turn
+ * a coefficient block into one 2×2 output tile. QUAD_W[q][0] alone reproduces the
+ * plain DC-average (block mean), with the higher terms adding quadrant detail.
+ */
+const QUAD_W = buildQuadWeights();
+function buildQuadWeights(): [Float64Array, Float64Array] {
+  const w: [Float64Array, Float64Array] = [new Float64Array(8), new Float64Array(8)];
+  for (let q = 0; q < 2; q++) {
+    for (let k = 0; k < 8; k++) {
+      const alpha = k === 0 ? Math.SQRT1_2 : 1;
+      let sum = 0;
+      for (let j = 0; j < 4; j++) {
+        const x = q * 4 + j;
+        sum += Math.cos(((2 * x + 1) * k * Math.PI) / 16);
+      }
+      // (1/4) average × (1/2) IDCT scale × alpha.
+      w[q][k] = (alpha * sum) / 8;
+    }
+  }
+  return w;
+}
+
 type Frame = {
   width: number;
   height: number;
@@ -96,12 +131,12 @@ function buildHuff(counts: number[], values: number[]): HuffTable {
 }
 
 /**
- * Parse the JPEG down to its scan, then walk every block keeping only the DC.
- * Returns one plane of block-average samples per component.
+ * Parse the JPEG down to its scan, then walk every block reconstructing a 2×2
+ * tile. Returns one quarter-resolution plane of samples per component.
  */
-function decodeDc(data: Uint8Array): {
-  blocksW: number;
-  blocksH: number;
+function decodeScaled(data: Uint8Array): {
+  width: number;
+  height: number;
   planes: Float32Array[];
   components: number;
   adobeTransform: number;
@@ -196,10 +231,12 @@ function decodeDc(data: Uint8Array): {
         scan.push({ comp, dc: t >> 4, ac: t & 15 });
       }
       p += 3; // Ss, Se, Ah/Al
-      const planes = walkScan(data, p, frame, scan, quant, huffDC, huffAC, resetInterval);
+      const blocksW = Math.ceil(frame.width / 8);
+      const blocksH = Math.ceil(frame.height / 8);
+      const planes = walkScan(data, p, blocksW, blocksH, scan, quant, huffDC, huffAC, resetInterval);
       return {
-        blocksW: Math.ceil(frame.width / 8),
-        blocksH: Math.ceil(frame.height / 8),
+        width: blocksW * 2,
+        height: blocksH * 2,
         planes,
         components: frame.components.length,
         adobeTransform,
@@ -215,16 +252,16 @@ function decodeDc(data: Uint8Array): {
 function walkScan(
   data: Uint8Array,
   start: number,
-  frame: Frame,
+  blocksW: number,
+  blocksH: number,
   scan: { comp: Frame["components"][number]; dc: number; ac: number }[],
   quant: Record<number, Int32Array>,
   huffDC: Record<number, HuffTable>,
   huffAC: Record<number, HuffTable>,
   resetInterval: number,
 ): Float32Array[] {
-  const blocksW = Math.ceil(frame.width / 8);
-  const blocksH = Math.ceil(frame.height / 8);
-  const planes = scan.map(() => new Float32Array(blocksW * blocksH));
+  const outW = blocksW * 2;
+  const planes = scan.map(() => new Float32Array(outW * blocksH * 2));
 
   let bytePos = start;
   let bitBuf = 0;
@@ -269,8 +306,11 @@ function walkScan(
     bytePos += 2;
   };
 
+  const coef = new Float64Array(64); // one block, natural order, dequantized
+  const colAvg = new Float64Array(16); // [row*2 + qx] partial row averages
   const pred = scan.map(() => 0);
   let mcu = 0;
+
   for (let by = 0; by < blocksH; by++) {
     for (let bx = 0; bx < blocksW; bx++) {
       if (resetInterval && mcu > 0 && mcu % resetInterval === 0) {
@@ -279,11 +319,10 @@ function walkScan(
       }
       for (let s = 0; s < scan.length; s++) {
         const q = quant[scan[s].comp.tq];
+        coef.fill(0);
         const t = huffDecode(huffDC[scan[s].dc]);
         pred[s] += t ? extend(receive(t), t) : 0;
-        // DC coefficient → the block's average sample (with the +128 level shift).
-        planes[s][by * blocksW + bx] = (pred[s] * q[0]) / 8 + 128;
-        // Walk the 63 AC coefficients to stay aligned; their values are discarded.
+        coef[0] = pred[s] * q[0];
         for (let k = 1; k < 64; ) {
           const rs = huffDecode(huffAC[scan[s].ac]);
           const run = rs >> 4;
@@ -296,8 +335,39 @@ function walkScan(
             break;
           }
           k += run;
-          receive(size);
+          if (k > 63) break;
+          coef[ZIGZAG[k]] = extend(receive(size), size) * q[k];
           k++;
+        }
+
+        // Reduce the coefficient block to a 2×2 tile of quadrant averages, using
+        // the separable weights: first collapse columns per row, then rows.
+        for (let row = 0; row < 8; row++) {
+          let c0 = 0;
+          let c1 = 0;
+          const base = row * 8;
+          for (let col = 0; col < 8; col++) {
+            const v = coef[base + col];
+            if (v !== 0) {
+              c0 += QUAD_W[0][col] * v;
+              c1 += QUAD_W[1][col] * v;
+            }
+          }
+          colAvg[row * 2] = c0;
+          colAvg[row * 2 + 1] = c1;
+        }
+        const plane = planes[s];
+        for (let qy = 0; qy < 2; qy++) {
+          const wy = QUAD_W[qy];
+          let a0 = 0;
+          let a1 = 0;
+          for (let row = 0; row < 8; row++) {
+            a0 += wy[row] * colAvg[row * 2];
+            a1 += wy[row] * colAvg[row * 2 + 1];
+          }
+          const o = (by * 2 + qy) * outW + bx * 2;
+          plane[o] = a0 + 128;
+          plane[o + 1] = a1 + 128;
         }
       }
       mcu++;

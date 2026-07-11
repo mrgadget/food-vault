@@ -1,13 +1,16 @@
 import { getImage } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Serve a stored recipe image from R2.
  *
- * The bucket is private, so every request is authenticated with the caller's
- * Supabase session and checked against the object key, which is prefixed with
- * the owner's user id. A signed-in user can therefore only read their own
- * images — the same guarantee the old signed URLs gave, without a shareable link.
+ * The bucket is private. Keys are `{recipeId}/{name}`, so ownership is whether
+ * the caller owns that recipe: a row lookup under the caller's session, which
+ * RLS scopes to their own recipes. An anonymous or non-owner request sees no
+ * row and gets a 404 — the same guarantee the old signed URLs gave, without a
+ * shareable link and without trusting the path itself.
  */
 export async function GET(
   _request: Request,
@@ -15,16 +18,19 @@ export async function GET(
 ) {
   const { path } = await params;
   const key = path.map(decodeURIComponent).join("/");
+  const recipeId = path[0] ? decodeURIComponent(path[0]) : "";
+
+  // A malformed id would make the uuid comparison throw in Postgres; reject it
+  // as simply not found.
+  if (!UUID.test(recipeId)) return new Response("Not found.", { status: 404 });
 
   const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return new Response("Not signed in.", { status: 401 });
-
-  // Keys are `{userId}/{batchId}/{name}`; anything outside the caller's prefix
-  // is not theirs to see. 404 rather than 403 so a probe learns nothing.
-  if (key !== auth.user.id && !key.startsWith(`${auth.user.id}/`)) {
-    return new Response("Not found.", { status: 404 });
-  }
+  const { data: recipe } = await supabase
+    .from("recipes")
+    .select("id")
+    .eq("id", recipeId)
+    .maybeSingle();
+  if (!recipe) return new Response("Not found.", { status: 404 });
 
   const object = await getImage(key);
   if (!object) return new Response("Not found.", { status: 404 });

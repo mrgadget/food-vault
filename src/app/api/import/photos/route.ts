@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { extractFromImages, type ImageInput } from "@/lib/ai/extract";
 import { saveRecipe, type SavedImage } from "@/lib/db/recipes";
 import { streamJob } from "@/lib/job-stream";
-import { deleteImages, putImage } from "@/lib/storage";
+import { deleteImages, objectKey, putImage } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
@@ -53,12 +53,13 @@ export async function POST(request: Request) {
     const recipe = await extractFromImages(images);
 
     progress("Saving the photos…");
-    const batchId = crypto.randomUUID();
+    // Minted here so the photos are stored under `{recipeId}/…` before the row.
+    const recipeId = crypto.randomUUID();
     const uploaded: SavedImage[] = [];
     try {
       for (const [i, bytes] of buffers.entries()) {
         const extension = files[i].type.split("/")[1];
-        const storagePath = `${auth.user.id}/${batchId}/${i}.${extension}`;
+        const storagePath = objectKey(recipeId, `photo-${i + 1}.${extension}`);
         await putImage(storagePath, bytes, files[i].type);
         uploaded.push({ storagePath, kind: normalizeKind(kinds[i]), mimeType: files[i].type });
       }
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
     }
 
     progress("Saving the recipe…");
-    return saveRecipe(supabase, auth.user.id, recipe, { source: "photo" }, uploaded);
+    return saveRecipe(supabase, auth.user.id, recipe, { source: "photo" }, uploaded, recipeId);
   });
 }
 

@@ -7,9 +7,8 @@ import { fetchImage, fetchSource, type Source } from "@/lib/import/fetch-page";
 import { decodeCoverToJpeg } from "@/lib/import/cover-hero";
 import { extractStepPhotos, findCoverBytes } from "@/lib/import/pdf-images";
 import { streamJob, type Progress } from "@/lib/job-stream";
-import { deleteImages, putImage } from "@/lib/storage";
+import { deleteImages, objectKey, putImage } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
-import type { ServerClient } from "@/lib/supabase/server";
 import type { Recipe } from "@/lib/schema";
 
 export async function POST(request: Request) {
@@ -50,13 +49,16 @@ export async function POST(request: Request) {
     progress(source.kind === "pdf" ? "Reading the recipe card…" : "Reading the recipe…");
     const recipe = await extractFromSource(url, source);
 
+    // The id is minted here so images can be stored under `{recipeId}/…`
+    // before the row is saved with the same id.
+    const recipeId = crypto.randomUUID();
     const images =
       source.kind === "pdf"
-        ? await archiveCard(supabase, auth.user.id, source.bytes, recipe, progress)
-        : await webHero(supabase, auth.user.id, source, progress);
+        ? await archiveCard(recipeId, source.bytes, recipe, progress)
+        : await webHero(recipeId, source, progress);
 
     progress("Saving…");
-    const id = await saveRecipe(supabase, auth.user.id, recipe, { source: "url", sourceUrl: url }, images);
+    const id = await saveRecipe(supabase, auth.user.id, recipe, { source: "url", sourceUrl: url }, images, recipeId);
 
     for (const oldId of replacedIds) await deleteRecipe(supabase, oldId);
     return id;
@@ -65,8 +67,7 @@ export async function POST(request: Request) {
 
 /** Fetch and store the page's lead photograph, if it advertised one. */
 async function webHero(
-  supabase: ServerClient,
-  userId: string,
+  recipeId: string,
   source: Source,
   progress: Progress,
 ): Promise<SavedImage[]> {
@@ -79,7 +80,7 @@ async function webHero(
   // A web page's lead photo is already a browser-displayable RGB format, and
   // the pages show it with object-cover, so it is stored as-is and sized down
   // in the browser rather than re-encoded here.
-  const storagePath = `${userId}/${crypto.randomUUID()}/hero.${extensionFor(fetched.mimeType)}`;
+  const storagePath = objectKey(recipeId, `hero.${extensionFor(fetched.mimeType)}`);
   await putImage(storagePath, fetched.bytes, fetched.mimeType);
 
   return [{ storagePath, kind: "hero", mimeType: fetched.mimeType }];
@@ -102,17 +103,15 @@ function extensionFor(mimeType: string): string {
  * whole import over a missing picture would be absurd.
  */
 async function archiveCard(
-  supabase: ServerClient,
-  userId: string,
+  recipeId: string,
   pdf: Uint8Array,
   recipe: Recipe,
   progress: Progress,
 ): Promise<SavedImage[]> {
-  const batchId = crypto.randomUUID();
   const uploads: SavedImage[] = [];
 
   const upload = async (name: string, bytes: Uint8Array, mimeType: string) => {
-    const storagePath = `${userId}/${batchId}/${name}`;
+    const storagePath = objectKey(recipeId, name);
     await putImage(storagePath, bytes, mimeType);
     return storagePath;
   };
@@ -157,7 +156,7 @@ async function archiveCard(
       // give the UI something it cannot place.
       if (stepIndex === undefined) continue;
       uploads.push({
-        storagePath: await upload(`step-${photo.index}.jpg`, photo.jpeg, "image/jpeg"),
+        storagePath: await upload(`step-${photo.index + 1}.jpg`, photo.jpeg, "image/jpeg"),
         kind: "step",
         mimeType: "image/jpeg",
         stepIndex,

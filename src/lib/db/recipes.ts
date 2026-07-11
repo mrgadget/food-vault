@@ -25,10 +25,14 @@ export async function saveRecipe(
   recipe: Recipe,
   source: { source: "url" | "photo" | "manual"; sourceUrl?: string },
   images: SavedImage[] = [],
+  // Generated up front so image objects can be keyed by it before the row
+  // exists (see lib/storage); callers that don't store images can let it default.
+  id: string = crypto.randomUUID(),
 ): Promise<string> {
   const { data: inserted, error: recipeError } = await supabase
     .from("recipes")
     .insert({
+      id,
       user_id: userId,
       title: recipe.title,
       description: recipe.description,

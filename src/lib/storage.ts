@@ -36,6 +36,15 @@ function bucket(): R2Bucket {
   return binding as R2Bucket;
 }
 
+/**
+ * The object key for a recipe asset: one folder per recipe, plain file names
+ * inside it — `{recipeId}/hero.jpg`, `{recipeId}/step-1.jpg`, `{recipeId}/source.pdf`.
+ * The recipe id is generated before the row is saved so uploads can use it.
+ */
+export function objectKey(recipeId: string, name: string): string {
+  return `${recipeId}/${name}`;
+}
+
 export async function putImage(path: string, bytes: Uint8Array, contentType: string): Promise<void> {
   await bucket().put(path, bytes, { httpMetadata: { contentType } });
 }

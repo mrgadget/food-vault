@@ -1,8 +1,9 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 /**
- * Object storage for recipe images, backed by a Cloudflare R2 bucket bound to
- * the Worker as `IMAGES_BUCKET` (see wrangler.jsonc).
+ * Object storage for recipe assets — images and source PDFs today, whatever
+ * else in time — backed by a Cloudflare R2 bucket bound to the Worker as
+ * `STORAGE` (see wrangler.jsonc).
  *
  * Objects are keyed `{userId}/{batchId}/{name}`, so the user id prefix is what
  * scopes ownership — the same shape the rows in Postgres store. R2 has no notion
@@ -30,8 +31,8 @@ export interface R2ObjectBody {
 }
 
 function bucket(): R2Bucket {
-  const binding = (getCloudflareContext().env as Record<string, unknown>).IMAGES_BUCKET;
-  if (!binding) throw new Error("R2 binding IMAGES_BUCKET is not configured");
+  const binding = (getCloudflareContext().env as Record<string, unknown>).STORAGE;
+  if (!binding) throw new Error("R2 binding STORAGE is not configured");
   return binding as R2Bucket;
 }
 

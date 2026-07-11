@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { DeleteRecipeButton } from "./delete-button";
 import { StarRating } from "./rating";
 import { ServingsScaler } from "./servings";
-import { getRecipe, signImageUrls } from "@/lib/db/recipes";
+import { getRecipe } from "@/lib/db/recipes";
 import { getUnitSystem } from "@/lib/db/settings";
+import { imageUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { convertTemperatures, type UnitSystem } from "@/lib/units";
 
@@ -78,7 +79,7 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
   const system = await getUnitSystem(supabase);
 
   const images = recipe.recipe_images as ImageRow[];
-  const signed = await signImageUrls(supabase, images.map((image) => image.storage_path));
+  const signed = imageUrls(images.map((image) => image.storage_path));
 
   const photoByStepId = new Map<string, string>();
   for (const image of images) {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { listRecipes, signImageUrls, type RecipeSummary } from "@/lib/db/recipes";
+import { listRecipes, type RecipeSummary } from "@/lib/db/recipes";
+import { imageUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 
 const NO_PROTEIN = "none";
@@ -79,9 +80,7 @@ export default async function HomePage({
       matchesVegetable(recipe, vegetable),
   );
 
-  // Sign every visible thumbnail in one round trip rather than per card.
-  const heroUrls = await signImageUrls(
-    supabase,
+  const heroUrls = imageUrls(
     visible.map((recipe) => recipe.heroPath).filter((path): path is string => path !== null),
   );
 

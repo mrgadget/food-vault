@@ -5,8 +5,6 @@
  * `recipe_vault.recipes`. It must be listed under Exposed schemas in the
  * project's API settings or PostgREST will not see the tables at all.
  *
- * Storage is not schema-scoped — buckets carry the app name instead.
+ * Images live in a Cloudflare R2 bucket, not Supabase Storage (see lib/storage).
  */
 export const DB_SCHEMA = "recipe_vault";
-
-export const IMAGE_BUCKET = "recipe-vault-images";

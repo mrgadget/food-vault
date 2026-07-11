@@ -1,7 +1,7 @@
 import type { ServerClient } from "@/lib/supabase/server";
 
 import type { Recipe } from "@/lib/schema";
-import { IMAGE_BUCKET } from "@/lib/supabase/schema";
+import { deleteImages } from "@/lib/storage";
 
 export type SavedImage = {
   storagePath: string;
@@ -230,10 +230,7 @@ export async function deleteRecipe(supabase: ServerClient, id: string): Promise<
   if (imageError) throw new Error(imageError.message);
 
   const paths = (images ?? []).map((image) => image.storage_path as string);
-  if (paths.length > 0) {
-    const { error } = await supabase.storage.from(IMAGE_BUCKET).remove(paths);
-    if (error) throw new Error(error.message);
-  }
+  await deleteImages(paths);
 
   // RLS scopes this to the signed-in user; a wrong id deletes nothing.
   const { error } = await supabase.from("recipes").delete().eq("id", id);
@@ -260,28 +257,3 @@ export async function getRecipe(supabase: ServerClient, id: string) {
   return data;
 }
 
-/**
- * The bucket is private, so images are reachable only through short-lived
- * signed URLs. One round trip for the whole recipe rather than one per image.
- */
-export async function signImageUrls(
-  supabase: ServerClient,
-  storagePaths: string[],
-  expiresInSeconds = 3600,
-): Promise<Map<string, string>> {
-  if (storagePaths.length === 0) return new Map();
-
-  const { data, error } = await supabase.storage
-    .from(IMAGE_BUCKET)
-    .createSignedUrls(storagePaths, expiresInSeconds);
-  if (error) throw new Error(error.message);
-
-  // `path` and `signedUrl` are both nullable per entry: signing one object can
-  // fail without failing the batch.
-  const signed = new Map<string, string>();
-  for (const entry of data ?? []) {
-    if (entry.error || !entry.path || !entry.signedUrl) continue;
-    signed.set(entry.path, entry.signedUrl);
-  }
-  return signed;
-}

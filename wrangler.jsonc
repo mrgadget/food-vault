@@ -9,6 +9,15 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  // Private object storage for recipe images (hero, step photos, source PDFs).
+  // Create it once: `npx wrangler r2 bucket create recipe-vault-images`.
+  // Served through the authenticated app/api/images route, never publicly.
+  "r2_buckets": [
+    {
+      "binding": "IMAGES_BUCKET",
+      "bucket_name": "recipe-vault-images"
+    }
+  ],
   "observability": {
     "enabled": true
   }

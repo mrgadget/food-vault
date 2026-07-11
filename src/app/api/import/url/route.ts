@@ -7,7 +7,7 @@ import { fetchImage, fetchSource, type Source } from "@/lib/import/fetch-page";
 import { decodeCoverToJpeg } from "@/lib/import/cover-hero";
 import { extractStepPhotos, findCoverBytes } from "@/lib/import/pdf-images";
 import { streamJob, type Progress } from "@/lib/job-stream";
-import { IMAGE_BUCKET } from "@/lib/supabase/schema";
+import { deleteImages, putImage } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import type { ServerClient } from "@/lib/supabase/server";
 import type { Recipe } from "@/lib/schema";
@@ -80,10 +80,7 @@ async function webHero(
   // the pages show it with object-cover, so it is stored as-is and sized down
   // in the browser rather than re-encoded here.
   const storagePath = `${userId}/${crypto.randomUUID()}/hero.${extensionFor(fetched.mimeType)}`;
-  const { error } = await supabase.storage
-    .from(IMAGE_BUCKET)
-    .upload(storagePath, fetched.bytes, { contentType: fetched.mimeType, upsert: false });
-  if (error) throw new Error(error.message);
+  await putImage(storagePath, fetched.bytes, fetched.mimeType);
 
   return [{ storagePath, kind: "hero", mimeType: fetched.mimeType }];
 }
@@ -116,10 +113,7 @@ async function archiveCard(
 
   const upload = async (name: string, bytes: Uint8Array, mimeType: string) => {
     const storagePath = `${userId}/${batchId}/${name}`;
-    const { error } = await supabase.storage
-      .from(IMAGE_BUCKET)
-      .upload(storagePath, bytes, { contentType: mimeType, upsert: false });
-    if (error) throw new Error(error.message);
+    await putImage(storagePath, bytes, mimeType);
     return storagePath;
   };
 
@@ -171,7 +165,7 @@ async function archiveCard(
     }
     return uploads;
   } catch (error) {
-    await supabase.storage.from(IMAGE_BUCKET).remove(uploads.map((u) => u.storagePath));
+    await deleteImages(uploads.map((u) => u.storagePath));
     throw error;
   }
 }

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { extractFromImages, type ImageInput } from "@/lib/ai/extract";
 import { saveRecipe, type SavedImage } from "@/lib/db/recipes";
 import { streamJob } from "@/lib/job-stream";
-import { IMAGE_BUCKET } from "@/lib/supabase/schema";
+import { deleteImages, putImage } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 
 const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
@@ -59,14 +59,11 @@ export async function POST(request: Request) {
       for (const [i, bytes] of buffers.entries()) {
         const extension = files[i].type.split("/")[1];
         const storagePath = `${auth.user.id}/${batchId}/${i}.${extension}`;
-        const { error } = await supabase.storage
-          .from(IMAGE_BUCKET)
-          .upload(storagePath, bytes, { contentType: files[i].type, upsert: false });
-        if (error) throw new Error(error.message);
+        await putImage(storagePath, bytes, files[i].type);
         uploaded.push({ storagePath, kind: normalizeKind(kinds[i]), mimeType: files[i].type });
       }
     } catch (error) {
-      await supabase.storage.from(IMAGE_BUCKET).remove(uploaded.map((image) => image.storagePath));
+      await deleteImages(uploaded.map((image) => image.storagePath));
       throw error;
     }
 

@@ -117,8 +117,13 @@ export async function extractHeroImage(pdf: Uint8Array): Promise<Uint8Array | nu
   }
   if (!hero) return null;
 
-  const { rgba, width, height } = decodeToRgba(hero.bytes);
-  return downscaleToJpeg(rgba, width, height, HERO_MAX_EDGE);
+  // Best-effort: a hero shot is a nicety, and a Worker has only 128MB. Rather
+  // than let a large decode crash the whole import, skip it.
+  try {
+    return heroJpeg(hero.bytes);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -129,8 +134,70 @@ export async function extractHeroImage(pdf: Uint8Array): Promise<Uint8Array | nu
  */
 export function prepareHeroJpeg(bytes: Uint8Array, mimeType: string): { bytes: Uint8Array; mimeType: string } {
   if (mimeType !== "image/jpeg") return { bytes, mimeType };
-  const { rgba, width, height } = decodeToRgba(bytes);
-  return { bytes: downscaleToJpeg(rgba, width, height, HERO_MAX_EDGE), mimeType: "image/jpeg" };
+  try {
+    return { bytes: heroJpeg(bytes), mimeType: "image/jpeg" };
+  } catch {
+    // Too large to decode in the Worker's memory — store the original; the
+    // browser can size it down.
+    return { bytes, mimeType };
+  }
+}
+
+/**
+ * Decode a JPEG and downscale it to a thumbnail in a single low-memory pass.
+ *
+ * A card's cover shot is ~10 megapixels. Decoding it to RGBA and then
+ * separately allocating a full-size buffer to convert and downscale held three
+ * ~40MB copies at once and overran the Worker's 128MB. This averages straight
+ * from the decoder's output into the small target, so the largest thing live at
+ * once is the decode's own `channels` array.
+ */
+function heroJpeg(bytes: Uint8Array): Uint8Array {
+  // Decode in its own scope so the JpegImage — and the ~40MB of internal
+  // component buffers it holds — can be collected before the downscale loop,
+  // which then only touches the single `channels` array.
+  const { channels, width, height, perPixel } = decodeChannels(bytes);
+  const cmyk = perPixel === 4;
+
+  const scale = Math.min(1, HERO_MAX_EDGE / Math.max(width, height));
+  const outW = Math.max(1, Math.round(width * scale));
+  const outH = Math.max(1, Math.round(height * scale));
+  const out = new Uint8Array(outW * outH * 4);
+
+  for (let oy = 0; oy < outH; oy++) {
+    const y0 = Math.floor((oy * height) / outH);
+    const y1 = Math.max(y0 + 1, Math.floor(((oy + 1) * height) / outH));
+    for (let ox = 0; ox < outW; ox++) {
+      const x0 = Math.floor((ox * width) / outW);
+      const x1 = Math.max(x0 + 1, Math.floor(((ox + 1) * width) / outW));
+
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let y = y0; y < y1; y++) {
+        const row = y * width;
+        for (let x = x0; x < x1; x++) {
+          const i = (row + x) * perPixel;
+          if (cmyk) {
+            const k = channels[i + 3];
+            r += (channels[i] * k) / 255;
+            g += (channels[i + 1] * k) / 255;
+            b += (channels[i + 2] * k) / 255;
+          } else {
+            r += channels[i];
+            g += channels[i + 1];
+            b += channels[i + 2];
+          }
+          n++;
+        }
+      }
+      const o = (oy * outW + ox) * 4;
+      out[o] = r / n;
+      out[o + 1] = g / n;
+      out[o + 2] = b / n;
+      out[o + 3] = 255;
+    }
+  }
+
+  return jpeg.encode({ data: out, width: outW, height: outH }, 82).data;
 }
 
 /**
@@ -162,15 +229,7 @@ function toDisplayableJpeg(raw: Uint8Array): Uint8Array {
  * black) is correct. A three-component image is ordinary RGB.
  */
 function decodeToRgba(raw: Uint8Array): { rgba: Uint8Array; width: number; height: number } {
-  const image = new JpegImage();
-  image.opts = { useTArray: true, tolerantDecoding: true, maxResolutionInMP: 100, maxMemoryUsageInMB: 512 };
-  // The guard is module-scoped and starts at zero, so it must be armed per image.
-  JpegImage.resetMaxMemoryUsage(512 * 1024 * 1024);
-  image.parse(raw);
-
-  const { width, height } = image;
-  const channels = image.getData(width, height);
-  const perPixel = channels.length / (width * height);
+  const { channels, width, height, perPixel } = decodeChannels(raw);
   const rgba = new Uint8Array(width * height * 4);
 
   for (let pixel = 0; pixel < width * height; pixel++) {
@@ -194,49 +253,33 @@ function decodeToRgba(raw: Uint8Array): { rgba: Uint8Array; width: number; heigh
 }
 
 /**
- * Box-average an RGBA image down so its longest edge is at most `maxEdge`,
- * then encode as JPEG. Averaging rather than dropping pixels keeps a shrunk
- * photograph from looking like broken glass.
+ * Decode a JPEG to its raw channels (3 for RGB, 4 for CMYK) and dimensions.
+ *
+ * Kept in its own function so the JpegImage — which also holds the decoder's
+ * large internal component buffers — is out of scope the moment this returns,
+ * leaving only the `channels` array live for the caller's pixel work. On a
+ * 128MB Worker that headroom is the difference between a hero thumbnail and an
+ * out-of-memory crash.
+ *
+ * The memory guard is a deliberate circuit breaker: an image too large to
+ * decode within the isolate throws here rather than tripping the runtime's own
+ * limit, so a caller can catch it and carry on without the picture.
  */
-function downscaleToJpeg(
-  rgba: Uint8Array,
-  width: number,
-  height: number,
-  maxEdge: number,
-): Uint8Array {
-  const scale = Math.min(1, maxEdge / Math.max(width, height));
-  if (scale === 1) return jpeg.encode({ data: rgba, width, height }, 82).data;
+function decodeChannels(raw: Uint8Array): {
+  channels: Uint8Array;
+  width: number;
+  height: number;
+  perPixel: number;
+} {
+  const image = new JpegImage();
+  image.opts = { useTArray: true, tolerantDecoding: true, maxResolutionInMP: 40, maxMemoryUsageInMB: 96 };
+  // The guard is module-scoped and starts at zero, so it must be armed per image.
+  JpegImage.resetMaxMemoryUsage(96 * 1024 * 1024);
+  image.parse(raw);
 
-  const outWidth = Math.max(1, Math.round(width * scale));
-  const outHeight = Math.max(1, Math.round(height * scale));
-  const out = new Uint8Array(outWidth * outHeight * 4);
-
-  for (let oy = 0; oy < outHeight; oy++) {
-    const y0 = Math.floor((oy * height) / outHeight);
-    const y1 = Math.max(y0 + 1, Math.floor(((oy + 1) * height) / outHeight));
-    for (let ox = 0; ox < outWidth; ox++) {
-      const x0 = Math.floor((ox * width) / outWidth);
-      const x1 = Math.max(x0 + 1, Math.floor(((ox + 1) * width) / outWidth));
-
-      let r = 0, g = 0, b = 0, n = 0;
-      for (let y = y0; y < y1; y++) {
-        for (let x = x0; x < x1; x++) {
-          const i = (y * width + x) * 4;
-          r += rgba[i];
-          g += rgba[i + 1];
-          b += rgba[i + 2];
-          n++;
-        }
-      }
-      const o = (oy * outWidth + ox) * 4;
-      out[o] = r / n;
-      out[o + 1] = g / n;
-      out[o + 2] = b / n;
-      out[o + 3] = 255;
-    }
-  }
-
-  return jpeg.encode({ data: out, width: outWidth, height: outHeight }, 82).data;
+  const { width, height } = image;
+  const channels = image.getData(width, height);
+  return { channels, width, height, perPixel: channels.length / (width * height) };
 }
 
 /** Read the component count out of the JPEG's start-of-frame marker. */

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export function DeleteRecipeButton({ id, title }: { id: string; title: string }) {
+export function DeleteFoodButton({ id, title }: { id: string; title: string }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -13,10 +13,10 @@ export function DeleteRecipeButton({ id, title }: { id: string; title: string })
     setBusy(true);
     setError(null);
 
-    const response = await fetch(`/api/recipes/${id}`, { method: "DELETE" });
+    const response = await fetch(`/api/foods/${id}`, { method: "DELETE" });
     if (!response.ok) {
       const result = await response.json().catch(() => null);
-      setError(result?.error ?? "Could not delete that recipe.");
+      setError(result?.error ?? "Could not delete that food.");
       setBusy(false);
       return;
     }
@@ -32,7 +32,7 @@ export function DeleteRecipeButton({ id, title }: { id: string; title: string })
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        aria-label="Delete recipe"
+        aria-label="Delete food"
         className="shrink-0 rounded-full p-2 text-muted transition-colors hover:bg-red-50 hover:text-red-700"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -45,7 +45,7 @@ export function DeleteRecipeButton({ id, title }: { id: string; title: string })
 
   return (
     <span className="flex flex-wrap items-center justify-end gap-3 text-sm">
-      {/* The recipe and its photographs go for good; deletion is not undoable. */}
+      {/* The food and its photographs go for good; deletion is not undoable. */}
       <span className="text-muted">Delete permanently?</span>
       <button
         type="button"

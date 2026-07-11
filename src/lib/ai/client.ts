@@ -17,7 +17,7 @@ export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
  *
  * Opus stays the default anyway. The cards that separate these models are the
  * awkward ones — a two-and-four-serving layout where the wrong column is still
- * a plausible recipe — and a wrong quantity is a failure nobody notices until
+ * a plausible food — and a wrong quantity is a failure nobody notices until
  * they are cooking.
  *
  * Read lazily: a Worker's bindings do not exist until a request arrives, so a

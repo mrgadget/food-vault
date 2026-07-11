@@ -5,7 +5,7 @@ import { useState } from "react";
 
 const STARS = [1, 2, 3, 4, 5];
 
-export function StarRating({ recipeId, initial }: { recipeId: string; initial: number | null }) {
+export function StarRating({ foodId, initial }: { foodId: string; initial: number | null }) {
   const router = useRouter();
   const [rating, setRating] = useState(initial);
   const [hover, setHover] = useState<number | null>(null);
@@ -16,7 +16,7 @@ export function StarRating({ recipeId, initial }: { recipeId: string; initial: n
     setRating(value); // optimistic
     setError(false);
 
-    const response = await fetch(`/api/recipes/${recipeId}`, {
+    const response = await fetch(`/api/foods/${foodId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ rating: value }),

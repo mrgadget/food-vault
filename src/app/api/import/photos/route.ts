@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { extractFromImages, type ImageInput } from "@/lib/ai/extract";
-import { saveRecipe, type SavedImage } from "@/lib/db/recipes";
+import { saveFood, type SavedImage } from "@/lib/db/foods";
 import { streamJob } from "@/lib/job-stream";
 import { deleteImages, objectKey, putImage } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Attach at least one photo." }, { status: 400 });
   }
   if (files.length > MAX_IMAGES) {
-    return NextResponse.json({ error: `At most ${MAX_IMAGES} photos per recipe.` }, { status: 400 });
+    return NextResponse.json({ error: `At most ${MAX_IMAGES} photos per food.` }, { status: 400 });
   }
   for (const file of files) {
     if (!ACCEPTED.includes(file.type as Accepted)) {
@@ -48,18 +48,18 @@ export async function POST(request: Request) {
     }));
 
     // Extract before uploading. A refusal, or a photo of something that is not
-    // a recipe, then costs no storage and leaves nothing to clean up.
+    // a food, then costs no storage and leaves nothing to clean up.
     progress(files.length > 1 ? `Reading ${files.length} photos…` : "Reading the photo…");
-    const recipe = await extractFromImages(images);
+    const food = await extractFromImages(images);
 
     progress("Saving the photos…");
-    // Minted here so the photos are stored under `{recipeId}/…` before the row.
-    const recipeId = crypto.randomUUID();
+    // Minted here so the photos are stored under `{foodId}/…` before the row.
+    const foodId = crypto.randomUUID();
     const uploaded: SavedImage[] = [];
     try {
       for (const [i, bytes] of buffers.entries()) {
         const extension = files[i].type.split("/")[1];
-        const storagePath = objectKey(recipeId, `photo-${i + 1}.${extension}`);
+        const storagePath = objectKey(foodId, `photo-${i + 1}.${extension}`);
         await putImage(storagePath, bytes, files[i].type);
         uploaded.push({ storagePath, kind: normalizeKind(kinds[i]), mimeType: files[i].type });
       }
@@ -68,8 +68,8 @@ export async function POST(request: Request) {
       throw error;
     }
 
-    progress("Saving the recipe…");
-    return saveRecipe(supabase, auth.user.id, recipe, { source: "photo" }, uploaded, recipeId);
+    progress("Saving the food…");
+    return saveFood(supabase, auth.user.id, food, { source: "photo" }, uploaded, foodId);
   });
 }
 

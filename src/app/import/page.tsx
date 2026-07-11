@@ -13,7 +13,7 @@ export default function ImportPage() {
 
   return (
     <div className="mx-auto max-w-xl">
-      <h1 className="font-display text-3xl font-semibold tracking-tight">Add a recipe</h1>
+      <h1 className="font-display text-3xl font-semibold tracking-tight">Add a food</h1>
 
       <div className="mt-6 flex gap-1 rounded-full border border-line bg-surface p-1">
         <TabButton active={tab === "url"} onClick={() => setTab("url")}>
@@ -91,13 +91,13 @@ function UrlImport() {
           return;
         }
         if (result.skipped) {
-          router.push(`/recipes/${result.id}`); // show the copy they already had
+          router.push(`/foods/${result.id}`); // show the copy they already had
           return;
         }
       }
 
       const id = await readJobStream(response, setStatus);
-      router.push(`/recipes/${id}`);
+      router.push(`/foods/${id}`);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Something went wrong.");
       setStatus(null);
@@ -112,7 +112,7 @@ function UrlImport() {
       }}
     >
       <label htmlFor="url" className="block text-sm font-medium">
-        Recipe URL
+        Food URL
       </label>
       <input
         id="url"
@@ -124,7 +124,7 @@ function UrlImport() {
         className="mt-2 w-full rounded-lg border border-line bg-paper px-4 py-3 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20"
       />
       <p className="mt-2 text-sm text-muted">
-        A recipe page, or a link straight to a recipe-card PDF. We read it, pull out the recipe,
+        A food page, or a link straight to a food-card PDF. We read it, pull out the food,
         and fill in anything it leaves unsaid.
       </p>
 
@@ -133,7 +133,7 @@ function UrlImport() {
           <p className="text-ink">
             You already have{" "}
             <span className="font-medium">
-              {duplicate.count > 1 ? `${duplicate.count} recipes` : `“${duplicate.title}”`}
+              {duplicate.count > 1 ? `${duplicate.count} foods` : `“${duplicate.title}”`}
             </span>{" "}
             from this link.
           </p>
@@ -231,7 +231,7 @@ function PhotoImport() {
 
     try {
       const id = await submitImport("/api/import/photos", { method: "POST", body: form }, setStatus);
-      router.push(`/recipes/${id}`);
+      router.push(`/foods/${id}`);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Something went wrong.");
       setStatus(null);

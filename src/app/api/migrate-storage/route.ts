@@ -3,12 +3,15 @@ import { NextResponse } from "next/server";
 import { objectKey, putImage } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 
-/** The Supabase Storage bucket images lived in before the move to R2. */
+/**
+ * The Supabase Storage bucket images lived in before the move to R2. Its name
+ * is historical — it predates the FoodVault rename — so it stays as-is.
+ */
 const LEGACY_BUCKET = "recipe-vault-images";
 
 /**
  * One-off migration: copy each image from the old Supabase Storage bucket into
- * R2 under the new `{recipeId}/{name}` key, and repoint the row.
+ * R2 under the new `{foodId}/{name}` key, and repoint the row.
  *
  * Idempotent — a row already on the new key is skipped, so it is safe to re-run
  * (e.g. after fixing whatever made one fail). The old Supabase objects are left
@@ -33,8 +36,8 @@ export async function POST(request: Request) {
   if (!auth.user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   const { data: rows, error } = await supabase
-    .from("recipe_images")
-    .select("id, recipe_id, storage_path, mime_type");
+    .from("food_images")
+    .select("id, food_id, storage_path, mime_type");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   let migrated = 0;
@@ -44,7 +47,7 @@ export async function POST(request: Request) {
   for (const row of rows ?? []) {
     const oldPath = row.storage_path as string;
     const name = oldPath.split("/").pop() ?? oldPath;
-    const newKey = objectKey(row.recipe_id as string, name);
+    const newKey = objectKey(row.food_id as string, name);
 
     if (oldPath === newKey) {
       skipped++;
@@ -68,7 +71,7 @@ export async function POST(request: Request) {
     await putImage(newKey, bytes, (row.mime_type as string) ?? "application/octet-stream");
 
     const { error: updateError } = await supabase
-      .from("recipe_images")
+      .from("food_images")
       .update({ storage_path: newKey })
       .eq("id", row.id);
     if (updateError) {

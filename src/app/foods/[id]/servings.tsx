@@ -37,7 +37,7 @@ export function ServingsScaler({
 }) {
   const [servings, setServings] = useState(baseServings ?? 0);
 
-  // A recipe that never said how many it serves cannot be scaled: there is no
+  // A food that never said how many it serves cannot be scaled: there is no
   // denominator. Show the amounts as written.
   const scalable = baseServings !== null && baseServings > 0;
   const factor = scalable ? servings / baseServings : 1;
@@ -47,7 +47,7 @@ export function ServingsScaler({
   const amount = (quantity: number | null, unit: string | null) =>
     displayAmount(quantity === null ? null : quantity * factor, unit, system);
 
-  // Always offer the recipe's own figure, even if it is an odd number.
+  // Always offer the food's own figure, even if it is an odd number.
   const options = scalable
     ? [...new Set([...CHOICES, baseServings])].sort((a, b) => a - b)
     : [];
@@ -104,7 +104,7 @@ export function ServingsScaler({
         <section className="mt-10">
           <h2 className="font-display text-2xl font-semibold">If you don&apos;t have the spice sachets</h2>
           <p className="mt-1 text-sm text-muted">
-            Our best reconstruction of each pre-mixed blend, scaled to this recipe.
+            Our best reconstruction of each pre-mixed blend, scaled to this food.
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {sachets.map((sachet) => (
@@ -140,7 +140,7 @@ function formatFactor(factor: number): string {
 function InferredBadge() {
   return (
     <span
-      title="Not stated in the original recipe"
+      title="Not stated in the original food"
       className="ml-2 rounded bg-accent-soft px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase tracking-wide text-accent"
     >
       added

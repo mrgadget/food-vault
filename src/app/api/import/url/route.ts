@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 
 import { extractFromSource } from "@/lib/ai/extract";
 import { matchPhotosToSteps } from "@/lib/ai/match-photos";
-import { deleteRecipe, findRecipesBySourceUrl, saveRecipe, type SavedImage } from "@/lib/db/recipes";
+import { deleteFood, findFoodsBySourceUrl, saveFood, type SavedImage } from "@/lib/db/foods";
 import { fetchImage, fetchSource, type Source } from "@/lib/import/fetch-page";
 import { decodeCoverToJpeg } from "@/lib/import/cover-hero";
 import { extractStepPhotos, findCoverBytes } from "@/lib/import/pdf-images";
 import { streamJob, type Progress } from "@/lib/job-stream";
 import { deleteImages, objectKey, putImage } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
-import type { Recipe } from "@/lib/schema";
+import type { Food } from "@/lib/schema";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
 
   // Re-importing the same link would otherwise silently make a second copy.
   // Before doing any slow work, check — and let the client decide.
-  const existing = await findRecipesBySourceUrl(supabase, url);
+  const existing = await findFoodsBySourceUrl(supabase, url);
   if (existing.length > 0 && onExisting !== "replace" && onExisting !== "skip") {
     return NextResponse.json({
       duplicate: { title: existing[0].title, count: existing.length },
@@ -36,9 +36,9 @@ export async function POST(request: Request) {
   if (existing.length > 0 && onExisting === "skip") {
     return NextResponse.json({ skipped: true, id: existing[0].id });
   }
-  // On replace, the new recipe is built first and the old ones removed only
+  // On replace, the new food is built first and the old ones removed only
   // after it lands, so a failed import never loses the copy you already had.
-  const replacedIds = onExisting === "replace" ? existing.map((recipe) => recipe.id) : [];
+  const replacedIds = onExisting === "replace" ? existing.map((food) => food.id) : [];
 
   // Everything above fails fast with a real status code. Everything below is
   // slow, so it streams — see lib/job-stream.
@@ -46,28 +46,28 @@ export async function POST(request: Request) {
     progress("Fetching…");
     const source = await fetchSource(url);
 
-    progress(source.kind === "pdf" ? "Reading the recipe card…" : "Reading the recipe…");
-    const recipe = await extractFromSource(url, source);
+    progress(source.kind === "pdf" ? "Reading the food card…" : "Reading the food…");
+    const food = await extractFromSource(url, source);
 
-    // The id is minted here so images can be stored under `{recipeId}/…`
+    // The id is minted here so images can be stored under `{foodId}/…`
     // before the row is saved with the same id.
-    const recipeId = crypto.randomUUID();
+    const foodId = crypto.randomUUID();
     const images =
       source.kind === "pdf"
-        ? await archiveCard(recipeId, source.bytes, recipe, progress)
-        : await webHero(recipeId, source, progress);
+        ? await archiveCard(foodId, source.bytes, food, progress)
+        : await webHero(foodId, source, progress);
 
     progress("Saving…");
-    const id = await saveRecipe(supabase, auth.user.id, recipe, { source: "url", sourceUrl: url }, images, recipeId);
+    const id = await saveFood(supabase, auth.user.id, food, { source: "url", sourceUrl: url }, images, foodId);
 
-    for (const oldId of replacedIds) await deleteRecipe(supabase, oldId);
+    for (const oldId of replacedIds) await deleteFood(supabase, oldId);
     return id;
   });
 }
 
 /** Fetch and store the page's lead photograph, if it advertised one. */
 async function webHero(
-  recipeId: string,
+  foodId: string,
   source: Source,
   progress: Progress,
 ): Promise<SavedImage[]> {
@@ -80,7 +80,7 @@ async function webHero(
   // A web page's lead photo is already a browser-displayable RGB format, and
   // the pages show it with object-cover, so it is stored as-is and sized down
   // in the browser rather than re-encoded here.
-  const storagePath = objectKey(recipeId, `hero.${extensionFor(fetched.mimeType)}`);
+  const storagePath = objectKey(foodId, `hero.${extensionFor(fetched.mimeType)}`);
   await putImage(storagePath, fetched.bytes, fetched.mimeType);
 
   return [{ storagePath, kind: "hero", mimeType: fetched.mimeType }];
@@ -94,24 +94,24 @@ function extensionFor(mimeType: string): string {
  * Keep the card and its step photographs.
  *
  * The PDF is archived because these URLs are not stable — a meal-kit card id
- * is reused across menu weeks, so `source_url` stops resolving to the recipe
+ * is reused across menu weeks, so `source_url` stops resolving to the food
  * stored against it. The archived copy is the only lasting record of what was
  * actually imported.
  *
  * Photographs are best-effort. A card that yields none, or a model that
- * declines to match them, still produces a perfectly good recipe; failing the
+ * declines to match them, still produces a perfectly good food; failing the
  * whole import over a missing picture would be absurd.
  */
 async function archiveCard(
-  recipeId: string,
+  foodId: string,
   pdf: Uint8Array,
-  recipe: Recipe,
+  food: Food,
   progress: Progress,
 ): Promise<SavedImage[]> {
   const uploads: SavedImage[] = [];
 
   const upload = async (name: string, bytes: Uint8Array, mimeType: string) => {
-    const storagePath = objectKey(recipeId, name);
+    const storagePath = objectKey(foodId, name);
     await putImage(storagePath, bytes, mimeType);
     return storagePath;
   };
@@ -148,7 +148,7 @@ async function archiveCard(
     if (photos.length === 0) return uploads;
 
     progress(`Matching ${photos.length} photos to steps…`);
-    const stepByPhoto = await matchPhotosToSteps(photos, recipe);
+    const stepByPhoto = await matchPhotosToSteps(photos, food);
 
     for (const photo of photos) {
       const stepIndex = stepByPhoto.get(photo.index);

@@ -4,7 +4,7 @@ import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream, decodePDFRawStre
 import { JpegImage } from "./vendor/jpeg-decoder.js";
 
 /**
- * Pull the photographs out of a recipe-card PDF.
+ * Pull the photographs out of a food-card PDF.
  *
  * A Worker has no rasteriser, so nothing here renders a page. Cards embed their
  * images as DCTDecode streams, which are JPEG files already, and are lifted out

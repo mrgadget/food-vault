@@ -10,7 +10,7 @@ import {
 } from "./prompt";
 import type { Source } from "@/lib/import/fetch-page";
 import { UserFacingError } from "@/lib/job-stream";
-import { recipeSchema, type Recipe } from "@/lib/schema";
+import { foodSchema, type Food } from "@/lib/schema";
 
 export type ImageInput = {
   base64: string;
@@ -20,7 +20,7 @@ export type ImageInput = {
 export class ExtractionRefused extends UserFacingError {}
 export class ExtractionTruncated extends UserFacingError {}
 
-async function extract(content: Anthropic.ContentBlockParam[]): Promise<Recipe> {
+async function extract(content: Anthropic.ContentBlockParam[]): Promise<Food> {
   const response = await anthropic().messages.parse({
     model: model(),
     max_tokens: 16000,
@@ -30,7 +30,7 @@ async function extract(content: Anthropic.ContentBlockParam[]): Promise<Recipe> 
     thinking: { type: "adaptive" },
     output_config: {
       effort: effort(),
-      format: zodOutputFormat(recipeSchema),
+      format: zodOutputFormat(foodSchema),
     },
     messages: [{ role: "user", content }],
   });
@@ -39,16 +39,16 @@ async function extract(content: Anthropic.ContentBlockParam[]): Promise<Recipe> 
     throw new ExtractionRefused("The model declined to process this source.");
   }
   if (response.stop_reason === "max_tokens") {
-    throw new ExtractionTruncated("That recipe was too long to extract in one pass.");
+    throw new ExtractionTruncated("That food was too long to extract in one pass.");
   }
   if (!response.parsed_output) {
-    throw new Error("The model returned no structured recipe.");
+    throw new Error("The model returned no structured food.");
   }
   return response.parsed_output;
 }
 
-/** Read a recipe off one or more photographs of the same card. */
-export function extractFromImages(images: ImageInput[]): Promise<Recipe> {
+/** Read a food off one or more photographs of the same card. */
+export function extractFromImages(images: ImageInput[]): Promise<Food> {
   if (images.length === 0) throw new Error("No images supplied.");
 
   const content: Anthropic.ContentBlockParam[] = [];
@@ -67,14 +67,14 @@ export function extractFromImages(images: ImageInput[]): Promise<Recipe> {
 }
 
 /**
- * Read a recipe from whatever a URL turned out to serve.
+ * Read a food from whatever a URL turned out to serve.
  *
  * A PDF goes to the model whole, as a document block: meal-kit cards are
  * published as PDFs, and their layout carries meaning that flattening to text
  * would destroy — which column is pantry staples, which small print lists a
  * spice blend's components.
  */
-export function extractFromSource(url: string, source: Source): Promise<Recipe> {
+export function extractFromSource(url: string, source: Source): Promise<Food> {
   if (source.kind === "pdf") {
     return extract([
       {

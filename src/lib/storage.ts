@@ -1,7 +1,7 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 /**
- * Object storage for recipe assets — images and source PDFs today, whatever
+ * Object storage for food assets — images and source PDFs today, whatever
  * else in time — backed by a Cloudflare R2 bucket bound to the Worker as
  * `STORAGE` (see wrangler.jsonc).
  *
@@ -37,12 +37,12 @@ function bucket(): R2Bucket {
 }
 
 /**
- * The object key for a recipe asset: one folder per recipe, plain file names
- * inside it — `{recipeId}/hero.jpg`, `{recipeId}/step-1.jpg`, `{recipeId}/source.pdf`.
- * The recipe id is generated before the row is saved so uploads can use it.
+ * The object key for a food asset: one folder per food, plain file names
+ * inside it — `{foodId}/hero.jpg`, `{foodId}/step-1.jpg`, `{foodId}/source.pdf`.
+ * The food id is generated before the row is saved so uploads can use it.
  */
-export function objectKey(recipeId: string, name: string): string {
-  return `${recipeId}/${name}`;
+export function objectKey(foodId: string, name: string): string {
+  return `${foodId}/${name}`;
 }
 
 export async function putImage(path: string, bytes: Uint8Array, contentType: string): Promise<void> {
@@ -53,7 +53,7 @@ export function getImage(path: string): Promise<R2ObjectBody | null> {
   return bucket().get(path);
 }
 
-/** Delete objects by key. R2 takes up to 1000 keys per call; recipes have a handful. */
+/** Delete objects by key. R2 takes up to 1000 keys per call; foods have a handful. */
 export async function deleteImages(paths: string[]): Promise<void> {
   if (paths.length > 0) await bucket().delete(paths);
 }

@@ -1,6 +1,6 @@
 {
-  "name": "RecipeVault",
-  "short_name": "RecipeVault",
+  "name": "FoodVault",
+  "short_name": "FoodVault",
   "description": "Collect recipes from the web and from photos of recipe cards.",
   "start_url": "/",
   "display": "standalone",

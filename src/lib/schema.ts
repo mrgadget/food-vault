@@ -24,7 +24,7 @@ export const ingredientSchema = z.object({
   unit: z.string().nullable().describe("g, ml, tbsp, clove, ... or null"),
   item: z.string().describe("The ingredient itself, without quantity or prep"),
   prepNote: z.string().nullable().describe("e.g. 'finely diced', 'at room temperature'"),
-  groupName: z.string().nullable().describe("Sub-recipe heading, e.g. 'For the sauce'"),
+  groupName: z.string().nullable().describe("Sub-food heading, e.g. 'For the sauce'"),
   category: z.enum(ingredientCategories).describe("What kind of ingredient this is"),
   canonical: z
     .string()
@@ -55,7 +55,7 @@ export const stepSchema = z.object({
   inferred: z.boolean().describe("True if this step was not stated in the source"),
 });
 
-export const recipeCourses = [
+export const foodCourses = [
   "main",
   "starter",
   "side",
@@ -70,10 +70,10 @@ export const recipeCourses = [
   "other",
 ] as const;
 
-export const recipeSchema = z.object({
+export const foodSchema = z.object({
   title: z.string(),
   description: z.string().nullable(),
-  course: z.enum(recipeCourses).describe("The single course this dish belongs to"),
+  course: z.enum(foodCourses).describe("The single course this dish belongs to"),
   servings: z.number().nullable(),
   prepMinutes: z.number().nullable(),
   cookMinutes: z.number().nullable(),
@@ -91,4 +91,4 @@ export const recipeSchema = z.object({
 export type Ingredient = z.infer<typeof ingredientSchema>;
 export type SachetExpansion = z.infer<typeof sachetExpansionSchema>;
 export type Step = z.infer<typeof stepSchema>;
-export type Recipe = z.infer<typeof recipeSchema>;
+export type Food = z.infer<typeof foodSchema>;

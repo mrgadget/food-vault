@@ -9,7 +9,7 @@ export type ServerClient = Awaited<ReturnType<typeof createClient>>;
 /**
  * Request-scoped client carrying the signed-in user's session. Every query it
  * makes is filtered by row-level security, so it can never reach another
- * user's recipes even if a query forgets its own `where user_id` clause.
+ * user's foods even if a query forgets its own `where user_id` clause.
  */
 export async function createClient() {
   const cookieStore = await cookies();

@@ -83,7 +83,7 @@ export default function LoginPage() {
         {mode === "signin" ? "Welcome back" : "Create an account"}
       </h1>
       <p className="mt-1.5 text-muted">
-        {mode === "signin" ? "Sign in to your recipe vault." : "Start saving recipes in one place."}
+        {mode === "signin" ? "Sign in to your food vault." : "Start saving foods in one place."}
       </p>
 
       <label htmlFor="email" className="mt-7 block text-sm font-medium">

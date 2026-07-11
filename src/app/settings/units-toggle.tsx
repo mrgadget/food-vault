@@ -32,7 +32,7 @@ export function UnitsToggle({ initial }: { initial: UnitSystem }) {
       setError(true);
       return;
     }
-    // Recipe pages read this server-side; refresh so they pick up the change.
+    // Food pages read this server-side; refresh so they pick up the change.
     router.refresh();
   }
 

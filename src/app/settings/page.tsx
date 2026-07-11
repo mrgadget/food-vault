@@ -28,7 +28,7 @@ export default async function SettingsPage() {
       <section className="mt-8 rounded-card border border-line bg-surface p-6 shadow-sm">
         <h2 className="font-display text-xl font-semibold">Measurements</h2>
         <p className="mt-1 text-sm text-muted">
-          Recipes are stored in metric and shown in your chosen system. This changes how amounts and
+          Foods are stored in metric and shown in your chosen system. This changes how amounts and
           oven temperatures are displayed, not what was imported.
         </p>
         <div className="mt-5">

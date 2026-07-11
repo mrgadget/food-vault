@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
 
-import { DeleteRecipeButton } from "./delete-button";
+import { DeleteFoodButton } from "./delete-button";
 import { StarRating } from "./rating";
 import { ServingsScaler } from "./servings";
-import { getRecipe } from "@/lib/db/recipes";
+import { getFood } from "@/lib/db/foods";
 import { getUnitSystem } from "@/lib/db/settings";
 import { imageUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -70,15 +70,15 @@ function toBlocks(
   return blocks;
 }
 
-export default async function RecipePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function FoodPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const recipe = await getRecipe(supabase, id);
-  if (!recipe) notFound();
+  const food = await getFood(supabase, id);
+  if (!food) notFound();
 
   const system = await getUnitSystem(supabase);
 
-  const images = recipe.recipe_images as ImageRow[];
+  const images = food.food_images as ImageRow[];
   const signed = imageUrls(images.map((image) => image.storage_path));
 
   const photoByStepId = new Map<string, string>();
@@ -93,14 +93,14 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
     images.find((image) => image.kind === "hero") ?? images.find((image) => image.kind === "front");
   const heroUrl = heroImage ? signed.get(heroImage.storage_path) : undefined;
 
-  const blocks = toBlocks(recipe.steps as StepRow[], photoByStepId, system);
+  const blocks = toBlocks(food.steps as StepRow[], photoByStepId, system);
 
   const meta = [
-    recipe.course !== "other" ? recipe.course : null,
-    recipe.cuisine,
-    recipe.servings && `Serves ${recipe.servings}`,
-    recipe.prep_minutes && `${recipe.prep_minutes} min prep`,
-    recipe.cook_minutes && `${recipe.cook_minutes} min cook`,
+    food.course !== "other" ? food.course : null,
+    food.cuisine,
+    food.servings && `Serves ${food.servings}`,
+    food.prep_minutes && `${food.prep_minutes} min prep`,
+    food.cook_minutes && `${food.cook_minutes} min cook`,
   ].filter((value): value is string => Boolean(value));
 
   return (
@@ -115,14 +115,14 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
       )}
       <div className="flex items-start justify-between gap-4">
         <h1 className="font-display text-4xl font-semibold leading-tight tracking-tight">
-          {recipe.title}
+          {food.title}
         </h1>
-        <DeleteRecipeButton id={recipe.id} title={recipe.title} />
+        <DeleteFoodButton id={food.id} title={food.title} />
       </div>
-      {recipe.description && <p className="mt-3 text-lg text-muted">{recipe.description}</p>}
+      {food.description && <p className="mt-3 text-lg text-muted">{food.description}</p>}
 
       <div className="mt-5">
-        <StarRating recipeId={recipe.id} initial={recipe.rating} />
+        <StarRating foodId={food.id} initial={food.rating} />
       </div>
 
       {meta.length > 0 && (
@@ -138,19 +138,19 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
         </div>
       )}
 
-      {recipe.ai_notes && (
+      {food.ai_notes && (
         <aside className="mt-8 rounded-card border border-accent/20 bg-accent-soft/60 p-5">
           <p className="text-sm font-semibold uppercase tracking-wide text-accent">What we filled in</p>
           <p className="mt-1.5 text-sm leading-relaxed text-ink/80">
-            {convertTemperatures(recipe.ai_notes, system)}
+            {convertTemperatures(food.ai_notes, system)}
           </p>
         </aside>
       )}
 
       <ServingsScaler
-        baseServings={recipe.servings}
-        ingredients={recipe.ingredients as IngredientRow[]}
-        sachets={recipe.sachet_expansions as SachetRow[]}
+        baseServings={food.servings}
+        ingredients={food.ingredients as IngredientRow[]}
+        sachets={food.sachet_expansions as SachetRow[]}
         system={system}
       />
 
@@ -196,24 +196,24 @@ export default async function RecipePage({ params }: { params: Promise<{ id: str
         </ol>
       </section>
 
-      {(recipe.source_url || sourceUrl) && (
+      {(food.source_url || sourceUrl) && (
         <footer className="mt-14 border-t border-line pt-5 text-sm text-muted">
           {sourceUrl && (
             <p>
               <a href={sourceUrl} className="text-accent hover:underline" rel="noreferrer noopener">
                 View the original card
               </a>{" "}
-              — archived when this recipe was imported.
+              — archived when this food was imported.
             </p>
           )}
-          {recipe.source_url && (
+          {food.source_url && (
             <p className={sourceUrl ? "mt-1" : undefined}>
               Imported from{" "}
-              <a href={recipe.source_url} className="text-accent hover:underline" rel="noreferrer noopener">
-                {new URL(recipe.source_url).hostname}
+              <a href={food.source_url} className="text-accent hover:underline" rel="noreferrer noopener">
+                {new URL(food.source_url).hostname}
               </a>
               {/* Meal-kit card ids are reused across menu weeks, so this link
-                  may now lead to an entirely different recipe. */}
+                  may now lead to an entirely different food. */}
               {sourceUrl && ", which may since have changed"}
             </p>
           )}
@@ -246,7 +246,7 @@ function Emphasised({ text }: { text: string }) {
 function InferredBadge() {
   return (
     <span
-      title="Not stated in the original recipe"
+      title="Not stated in the original food"
       className="ml-2 rounded bg-accent-soft px-1.5 py-0.5 align-middle text-[10px] font-medium uppercase tracking-wide text-accent"
     >
       added

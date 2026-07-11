@@ -13,9 +13,9 @@ const MAX_TEXT_CHARS = 60_000;
 export class FetchFailed extends UserFacingError {}
 
 /**
- * What a recipe URL turned out to be pointing at.
+ * What a food URL turned out to be pointing at.
  *
- * Meal-kit services publish their recipe cards as PDFs — the same artifact a
+ * Meal-kit services publish their food cards as PDFs — the same artifact a
  * cook would otherwise photograph front and back — so a PDF is a first-class
  * source here, not a failure.
  */
@@ -33,8 +33,8 @@ export async function fetchSource(url: string): Promise<Source> {
   const response = await fetch(parsed, {
     redirect: "follow",
     headers: {
-      // Some recipe sites serve a bot wall to unrecognized agents.
-      "user-agent": "Mozilla/5.0 (compatible; RecipeVault/0.1; +https://github.com/)",
+      // Some food sites serve a bot wall to unrecognized agents.
+      "user-agent": "Mozilla/5.0 (compatible; FoodVault/0.1; +https://github.com/)",
       accept: "text/html,application/xhtml+xml,application/pdf",
     },
     signal: AbortSignal.timeout(30_000),
@@ -63,15 +63,15 @@ export async function fetchSource(url: string): Promise<Source> {
 }
 
 /**
- * Most recipe sites embed a schema.org/Recipe JSON-LD block. When present we
+ * Most food sites embed a schema.org/Food JSON-LD block. When present we
  * hand that to the model verbatim — it is already structured, so extraction is
  * near-lossless. Otherwise we fall back to the stripped body text.
  */
 function readableText(html: string, url: URL): string {
   const $ = cheerio.load(html);
 
-  const jsonLd = findRecipeJsonLd($);
-  if (jsonLd) return `schema.org/Recipe JSON-LD:\n${jsonLd}`;
+  const jsonLd = findFoodJsonLd($);
+  if (jsonLd) return `schema.org/Food JSON-LD:\n${jsonLd}`;
 
   $("script, style, nav, header, footer, noscript, iframe, svg, form").remove();
   const text = $("body").text().replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n\n").trim();
@@ -81,15 +81,15 @@ function readableText(html: string, url: URL): string {
 }
 
 /**
- * The page's own lead photograph: the Recipe JSON-LD `image`, else `og:image`.
+ * The page's own lead photograph: the Food JSON-LD `image`, else `og:image`.
  * Resolved against the page URL so a relative path becomes absolute. Null when
  * the page advertises none.
  */
 function findHeroUrl(html: string, pageUrl: URL): string | null {
   const $ = cheerio.load(html);
 
-  const fromRecipe = imageFromJsonLd(findRecipeJsonLdNode($));
-  const raw = fromRecipe ?? $('meta[property="og:image"]').attr("content") ?? null;
+  const fromFood = imageFromJsonLd(findFoodJsonLdNode($));
+  const raw = fromFood ?? $('meta[property="og:image"]').attr("content") ?? null;
   if (!raw) return null;
 
   try {
@@ -100,9 +100,9 @@ function findHeroUrl(html: string, pageUrl: URL): string | null {
 }
 
 /** schema.org `image` is maddeningly polymorphic: a string, an array, or an ImageObject. */
-function imageFromJsonLd(recipe: unknown): string | null {
-  if (!recipe || typeof recipe !== "object") return null;
-  const image = (recipe as Record<string, unknown>).image;
+function imageFromJsonLd(food: unknown): string | null {
+  if (!food || typeof food !== "object") return null;
+  const image = (food as Record<string, unknown>).image;
 
   const first = Array.isArray(image) ? image[0] : image;
   if (typeof first === "string") return first;
@@ -194,14 +194,14 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-/** Walk every JSON-LD block, including @graph arrays, looking for a Recipe. */
-function findRecipeJsonLd($: cheerio.CheerioAPI): string | null {
-  const recipe = findRecipeJsonLdNode($);
-  return recipe ? JSON.stringify(recipe, null, 2) : null;
+/** Walk every JSON-LD block, including @graph arrays, looking for a Food. */
+function findFoodJsonLd($: cheerio.CheerioAPI): string | null {
+  const food = findFoodJsonLdNode($);
+  return food ? JSON.stringify(food, null, 2) : null;
 }
 
-/** The Recipe node itself, for callers that want a field off it (e.g. the image). */
-function findRecipeJsonLdNode($: cheerio.CheerioAPI): unknown | null {
+/** The Food node itself, for callers that want a field off it (e.g. the image). */
+function findFoodJsonLdNode($: cheerio.CheerioAPI): unknown | null {
   for (const element of $('script[type="application/ld+json"]').toArray()) {
     const raw = $(element).text();
     if (!raw.trim()) continue;
@@ -213,16 +213,16 @@ function findRecipeJsonLdNode($: cheerio.CheerioAPI): unknown | null {
       continue; // A malformed block on the page is not our problem.
     }
 
-    const recipe = findRecipeNode(parsed);
-    if (recipe) return recipe;
+    const food = findFoodNode(parsed);
+    if (food) return food;
   }
   return null;
 }
 
-function findRecipeNode(node: unknown): unknown | null {
+function findFoodNode(node: unknown): unknown | null {
   if (Array.isArray(node)) {
     for (const child of node) {
-      const found = findRecipeNode(child);
+      const found = findFoodNode(child);
       if (found) return found;
     }
     return null;
@@ -231,9 +231,9 @@ function findRecipeNode(node: unknown): unknown | null {
 
   const record = node as Record<string, unknown>;
   const type = record["@type"];
-  const isRecipe = Array.isArray(type) ? type.includes("Recipe") : type === "Recipe";
-  if (isRecipe) return record;
+  const isFood = Array.isArray(type) ? type.includes("Food") : type === "Food";
+  if (isFood) return record;
 
-  if (record["@graph"]) return findRecipeNode(record["@graph"]);
+  if (record["@graph"]) return findFoodNode(record["@graph"]);
   return null;
 }

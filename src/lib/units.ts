@@ -3,7 +3,7 @@
  *
  * Quantities are stored metric (see the extraction prompt); this converts them
  * to the reader's chosen system at display time. A converter that normalises to
- * a base unit and re-emits also copes with older recipes stored in imperial —
+ * a base unit and re-emits also copes with older foods stored in imperial —
  * it simply converts the other way — so the reader always sees their system.
  */
 
@@ -138,7 +138,7 @@ function emit(base: number, dim: "mass" | "volume", system: UnitSystem): { quant
 /**
  * Convert oven temperatures written into free text to the reader's system.
  *
- * Bidirectional on purpose: newer recipes store Celsius, but ones imported
+ * Bidirectional on purpose: newer foods store Celsius, but ones imported
  * before metric normalisation hold Fahrenheit, so a reader must be able to see
  * either turned into their own — no re-import required. Matches "220°C",
  * "220 C", "350°F", "350 degrees F".

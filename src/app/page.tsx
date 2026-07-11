@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { listRecipes, type RecipeSummary } from "@/lib/db/recipes";
+import { listFoods, type FoodSummary } from "@/lib/db/foods";
 import { imageUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 
@@ -35,7 +35,7 @@ export default async function HomePage({
   if (!auth.user) {
     return (
       <div className="mx-auto max-w-md rounded-card border border-line bg-surface p-10 text-center shadow-sm">
-        <p className="font-display text-2xl font-semibold">Your recipe vault</p>
+        <p className="font-display text-2xl font-semibold">Your food vault</p>
         <p className="mt-2 text-muted">Sign in to see everything you&apos;ve saved.</p>
         <Link
           href="/login"
@@ -48,20 +48,20 @@ export default async function HomePage({
   }
 
   const { course, protein, vegetable } = await searchParams;
-  const recipes = await listRecipes(supabase);
+  const foods = await listFoods(supabase);
 
-  if (recipes.length === 0) {
+  if (foods.length === 0) {
     return (
       <div className="rounded-card border border-dashed border-line bg-surface/60 p-14 text-center">
         <h1 className="font-display text-2xl font-semibold">Nothing in the vault yet</h1>
         <p className="mx-auto mt-2 max-w-sm text-muted">
-          Import a recipe from a URL, or photograph the front and back of a recipe card.
+          Import a food from a URL, or photograph the front and back of a food card.
         </p>
         <Link
           href="/import"
           className="mt-6 inline-block rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-accent-fg shadow-sm transition-transform hover:-translate-y-px"
         >
-          Add your first recipe
+          Add your first food
         </Link>
       </div>
     );
@@ -69,29 +69,29 @@ export default async function HomePage({
 
   // Facets come from what has actually been imported, so the filters can never
   // offer a choice that matches nothing.
-  const courses = COURSE_ORDER.filter((c) => recipes.some((recipe) => recipe.course === c));
-  const proteins = facet(recipes, "protein");
-  const vegetables = facet(recipes, "vegetable");
+  const courses = COURSE_ORDER.filter((c) => foods.some((food) => food.course === c));
+  const proteins = facet(foods, "protein");
+  const vegetables = facet(foods, "vegetable");
 
-  const visible = recipes.filter(
-    (recipe) =>
-      (!course || recipe.course === course) &&
-      matchesProtein(recipe, protein) &&
-      matchesVegetable(recipe, vegetable),
+  const visible = foods.filter(
+    (food) =>
+      (!course || food.course === course) &&
+      matchesProtein(food, protein) &&
+      matchesVegetable(food, vegetable),
   );
 
   const heroUrls = imageUrls(
-    visible.map((recipe) => recipe.heroPath).filter((path): path is string => path !== null),
+    visible.map((food) => food.heroPath).filter((path): path is string => path !== null),
   );
 
   return (
     <>
       <div className="flex items-baseline justify-between gap-4">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Your recipes</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Your foods</h1>
         <span className="text-sm text-muted">
-          {visible.length === recipes.length
-            ? `${recipes.length} recipe${recipes.length === 1 ? "" : "s"}`
-            : `${visible.length} of ${recipes.length}`}
+          {visible.length === foods.length
+            ? `${foods.length} food${foods.length === 1 ? "" : "s"}`
+            : `${visible.length} of ${foods.length}`}
         </span>
       </div>
 
@@ -114,26 +114,26 @@ export default async function HomePage({
 
       {visible.length === 0 ? (
         <p className="mt-12 text-center text-muted">
-          No recipes match those filters.{" "}
+          No foods match those filters.{" "}
           <Link href="/" className="font-medium text-accent hover:underline">
             Clear them
           </Link>
         </p>
       ) : (
         <ul className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {visible.map((recipe) => {
-            const heroUrl = recipe.heroPath ? heroUrls.get(recipe.heroPath) : undefined;
+          {visible.map((food) => {
+            const heroUrl = food.heroPath ? heroUrls.get(food.heroPath) : undefined;
             const meta = [
-              recipe.cuisine,
-              recipe.servings && `Serves ${recipe.servings}`,
-              recipe.prep_minutes && `${recipe.prep_minutes} min prep`,
-              recipe.cook_minutes && `${recipe.cook_minutes} min cook`,
+              food.cuisine,
+              food.servings && `Serves ${food.servings}`,
+              food.prep_minutes && `${food.prep_minutes} min prep`,
+              food.cook_minutes && `${food.cook_minutes} min cook`,
             ].filter(Boolean);
 
             return (
-              <li key={recipe.id}>
+              <li key={food.id}>
                 <Link
-                  href={`/recipes/${recipe.id}`}
+                  href={`/foods/${food.id}`}
                   className="group flex h-full flex-col overflow-hidden rounded-card border border-line bg-surface shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <div className="relative aspect-[4/3] overflow-hidden bg-accent-soft">
@@ -146,25 +146,25 @@ export default async function HomePage({
                       />
                     ) : (
                       <span className="flex h-full w-full items-center justify-center font-display text-4xl font-semibold text-accent/40">
-                        {recipe.title.slice(0, 1).toUpperCase()}
+                        {food.title.slice(0, 1).toUpperCase()}
                       </span>
                     )}
-                    {recipe.course !== "other" && (
+                    {food.course !== "other" && (
                       <span className="absolute left-3 top-3 rounded-full bg-paper/90 px-2.5 py-1 text-xs font-medium capitalize text-ink shadow-sm backdrop-blur-sm">
-                        {recipe.course}
+                        {food.course}
                       </span>
                     )}
                   </div>
 
                   <div className="flex flex-1 flex-col p-4">
-                    <h2 className="font-display text-lg font-semibold leading-snug">{recipe.title}</h2>
-                    {recipe.rating !== null && (
+                    <h2 className="font-display text-lg font-semibold leading-snug">{food.title}</h2>
+                    {food.rating !== null && (
                       <div className="mt-1">
-                        <Stars value={recipe.rating} />
+                        <Stars value={food.rating} />
                       </div>
                     )}
-                    {recipe.description && (
-                      <p className="mt-1.5 line-clamp-2 text-sm text-muted">{recipe.description}</p>
+                    {food.description && (
+                      <p className="mt-1.5 line-clamp-2 text-sm text-muted">{food.description}</p>
                     )}
                     {meta.length > 0 && (
                       <p className="mt-auto pt-3 text-xs uppercase tracking-wide text-muted">
@@ -183,34 +183,34 @@ export default async function HomePage({
 }
 
 
-/** Distinct canonical names in a category, across every recipe. */
-function facet(recipes: RecipeSummary[], category: string): string[] {
+/** Distinct canonical names in a category, across every food. */
+function facet(foods: FoodSummary[], category: string): string[] {
   const names = new Set<string>();
-  for (const recipe of recipes) {
-    for (const ingredient of recipe.ingredients) {
+  for (const food of foods) {
+    for (const ingredient of food.ingredients) {
       if (ingredient.category === category && ingredient.canonical) names.add(ingredient.canonical);
     }
   }
   return [...names].sort();
 }
 
-function canonicalsIn(recipe: RecipeSummary, category: string): string[] {
-  return recipe.ingredients
+function canonicalsIn(food: FoodSummary, category: string): string[] {
+  return food.ingredients
     .filter((ingredient) => ingredient.category === category && ingredient.canonical)
     .map((ingredient) => ingredient.canonical as string);
 }
 
-function matchesProtein(recipe: RecipeSummary, protein: string | undefined): boolean {
+function matchesProtein(food: FoodSummary, protein: string | undefined): boolean {
   if (!protein) return true;
-  const proteins = canonicalsIn(recipe, "protein");
+  const proteins = canonicalsIn(food, "protein");
   // "none" means vegetarian in the loose sense the cook cares about: no meat,
-  // no fish, nothing the recipe treats as its protein.
+  // no fish, nothing the food treats as its protein.
   return protein === NO_PROTEIN ? proteins.length === 0 : proteins.includes(protein);
 }
 
-function matchesVegetable(recipe: RecipeSummary, vegetable: string | undefined): boolean {
+function matchesVegetable(food: FoodSummary, vegetable: string | undefined): boolean {
   if (!vegetable) return true;
-  return canonicalsIn(recipe, "vegetable").includes(vegetable);
+  return canonicalsIn(food, "vegetable").includes(vegetable);
 }
 
 /**

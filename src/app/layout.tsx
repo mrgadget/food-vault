@@ -7,10 +7,10 @@ import { createClient } from "@/lib/supabase/server";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "RecipeVault",
-  description: "Collect recipes from the web and from photos of recipe cards.",
+  title: "FoodVault",
+  description: "Collect foods from the web and from photos of food cards.",
   manifest: "/manifest.webmanifest",
-  appleWebApp: { capable: true, title: "RecipeVault", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "FoodVault", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
@@ -33,7 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               href="/"
               className="font-display text-xl font-semibold tracking-tight text-ink transition-opacity hover:opacity-70"
             >
-              Recipe<span className="text-accent">Vault</span>
+              Food<span className="text-accent">Vault</span>
             </Link>
             {auth.user ? (
               <div className="flex items-center gap-5">
@@ -45,7 +45,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   href="/import"
                   className="inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-sm font-medium text-paper shadow-sm transition-transform hover:-translate-y-px active:translate-y-0"
                 >
-                  <span className="text-base leading-none">+</span> Add recipe
+                  <span className="text-base leading-none">+</span> Add food
                 </Link>
               </div>
             ) : (

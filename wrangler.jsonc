@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "recipe-vault",
+  "name": "food-vault",
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-09-23",
   // Required by the Next.js server runtime and the Anthropic SDK.
@@ -9,14 +9,14 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
-  // Private object storage for recipe assets (hero + step images, source PDFs,
+  // Private object storage for food assets (hero + step images, source PDFs,
   // and whatever else lands here in time). Create it once:
-  //   `npx wrangler r2 bucket create recipe-vault`
+  //   `npx wrangler r2 bucket create food-vault`
   // Served through the authenticated app/api/images route, never publicly.
   "r2_buckets": [
     {
       "binding": "STORAGE",
-      "bucket_name": "recipe-vault"
+      "bucket_name": "food-vault"
     }
   ],
   "observability": {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { deleteRecipe, setRecipeRating } from "@/lib/db/recipes";
+import { deleteFood, setFoodRating } from "@/lib/db/foods";
 import { createClient } from "@/lib/supabase/server";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -20,7 +20,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   try {
-    await setRecipeRating(supabase, id, rating);
+    await setFoodRating(supabase, id, rating);
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error("Rating update failed", error);
@@ -41,10 +41,10 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     // No ownership check here on purpose. Row-level security already scopes the
     // delete to this user, and a second check in application code would be a
     // second thing to get wrong.
-    await deleteRecipe(supabase, id);
+    await deleteFood(supabase, id);
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error("Delete failed", error);
-    return NextResponse.json({ error: "Could not delete that recipe." }, { status: 500 });
+    return NextResponse.json({ error: "Could not delete that food." }, { status: 500 });
   }
 }

@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { anthropic, model } from "./client";
 import type { PdfImage } from "@/lib/import/pdf-images";
-import type { Recipe } from "@/lib/schema";
+import type { Food } from "@/lib/schema";
 
 const matchSchema = z.object({
   matches: z.array(
@@ -32,9 +32,9 @@ const matchSchema = z.object({
  */
 export async function matchPhotosToSteps(
   photos: PdfImage[],
-  recipe: Recipe,
+  food: Food,
 ): Promise<Map<number, number>> {
-  const majors = recipe.steps
+  const majors = food.steps
     .map((step, index) => ({ step, index }))
     .filter(({ step }) => step.kind === "major");
 
@@ -61,13 +61,13 @@ export async function matchPhotosToSteps(
     thinking: { type: "adaptive" },
     // Recognising a pan of mince is not hard; the reasoning is in the refusals.
     output_config: { effort: "medium", format: zodOutputFormat(matchSchema) },
-    system: "You match photographs from a recipe card to the cooking steps they depict.",
+    system: "You match photographs from a food card to the cooking steps they depict.",
     messages: [{ role: "user", content }],
   });
 
   if (response.stop_reason === "refusal" || !response.parsed_output) return new Map();
 
-  // Photo index -> position of the step within recipe.steps.
+  // Photo index -> position of the step within food.steps.
   const byPhoto = new Map<number, number>();
   const claimed = new Set<number>();
   for (const match of response.parsed_output.matches) {

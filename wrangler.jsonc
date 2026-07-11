@@ -9,6 +9,12 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  // Resizes hero images in Cloudflare's image pipeline, off the 128MB isolate.
+  // A ~10MP CMYK cover cannot be decoded in-Worker; this can. Requires Images
+  // (Transformations) enabled on the account — included on Workers Paid.
+  "images": {
+    "binding": "IMAGES"
+  },
   "observability": {
     "enabled": true
   }

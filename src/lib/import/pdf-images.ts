@@ -38,8 +38,6 @@ export type PdfImage = {
 const MIN_PHOTO_EDGE = 400;
 /** The hero shot dwarfs the step photos; it is the card's cover, not a step. */
 const HERO_MEGAPIXELS = 4;
-/** Longest edge of a stored hero. Big enough for a banner, small enough to thumbnail. */
-const HERO_MAX_EDGE = 900;
 
 type RawImage = { page: number; width: number; height: number; bytes: Uint8Array };
 
@@ -97,107 +95,25 @@ export async function extractStepPhotos(pdf: Uint8Array): Promise<PdfImage[]> {
 }
 
 /**
- * The card's cover photograph, downscaled — the plated dish, shot large.
+ * The raw bytes of the card's cover photograph — the biggest image on the
+ * card, and the one extractStepPhotos skips for being too big. Here that size
+ * is the whole point.
  *
- * It is the biggest image on the card and the one extractStepPhotos throws
- * away for being too big; here that size is the whole point. Downscaled on the
- * way out: the original is ~10 megapixels, far more than a thumbnail or a
- * banner needs, and storing that per recipe is wasteful.
+ * Returned undecoded on purpose. The cover is ~10 megapixels of Adobe CMYK, and
+ * decoding that in JavaScript needs ~170MB of buffers — more than a Worker's
+ * 128MB isolate has. The resize is handed to the Cloudflare Images binding
+ * instead (see lib/import/images.ts), which runs outside the isolate's memory.
  *
  * Returns null when no image is large enough to be a cover — a plain photo of
  * a printed page has no hero.
  */
-export async function extractHeroImage(pdf: Uint8Array): Promise<Uint8Array | null> {
-  const images = await rawImages(pdf);
-
-  let hero: RawImage | undefined;
-  for (const image of images) {
+export async function findCoverBytes(pdf: Uint8Array): Promise<Uint8Array | null> {
+  let cover: RawImage | undefined;
+  for (const image of await rawImages(pdf)) {
     if ((image.width * image.height) / 1e6 < HERO_MEGAPIXELS) continue;
-    if (!hero || image.width * image.height > hero.width * hero.height) hero = image;
+    if (!cover || image.width * image.height > cover.width * cover.height) cover = image;
   }
-  if (!hero) return null;
-
-  // Best-effort: a hero shot is a nicety, and a Worker has only 128MB. Rather
-  // than let a large decode crash the whole import, skip it.
-  try {
-    return heroJpeg(hero.bytes);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Normalise a hero image fetched from the web to a stored thumbnail: decode,
- * downscale, re-encode as JPEG. Only JPEGs are handled here — jpeg-js cannot
- * read PNG or WebP — so those are returned unchanged and stored at full size,
- * which the browser can display and size down itself.
- */
-export function prepareHeroJpeg(bytes: Uint8Array, mimeType: string): { bytes: Uint8Array; mimeType: string } {
-  if (mimeType !== "image/jpeg") return { bytes, mimeType };
-  try {
-    return { bytes: heroJpeg(bytes), mimeType: "image/jpeg" };
-  } catch {
-    // Too large to decode in the Worker's memory — store the original; the
-    // browser can size it down.
-    return { bytes, mimeType };
-  }
-}
-
-/**
- * Decode a JPEG and downscale it to a thumbnail in a single low-memory pass.
- *
- * A card's cover shot is ~10 megapixels. Decoding it to RGBA and then
- * separately allocating a full-size buffer to convert and downscale held three
- * ~40MB copies at once and overran the Worker's 128MB. This averages straight
- * from the decoder's output into the small target, so the largest thing live at
- * once is the decode's own `channels` array.
- */
-function heroJpeg(bytes: Uint8Array): Uint8Array {
-  // Decode in its own scope so the JpegImage — and the ~40MB of internal
-  // component buffers it holds — can be collected before the downscale loop,
-  // which then only touches the single `channels` array.
-  const { channels, width, height, perPixel } = decodeChannels(bytes);
-  const cmyk = perPixel === 4;
-
-  const scale = Math.min(1, HERO_MAX_EDGE / Math.max(width, height));
-  const outW = Math.max(1, Math.round(width * scale));
-  const outH = Math.max(1, Math.round(height * scale));
-  const out = new Uint8Array(outW * outH * 4);
-
-  for (let oy = 0; oy < outH; oy++) {
-    const y0 = Math.floor((oy * height) / outH);
-    const y1 = Math.max(y0 + 1, Math.floor(((oy + 1) * height) / outH));
-    for (let ox = 0; ox < outW; ox++) {
-      const x0 = Math.floor((ox * width) / outW);
-      const x1 = Math.max(x0 + 1, Math.floor(((ox + 1) * width) / outW));
-
-      let r = 0, g = 0, b = 0, n = 0;
-      for (let y = y0; y < y1; y++) {
-        const row = y * width;
-        for (let x = x0; x < x1; x++) {
-          const i = (row + x) * perPixel;
-          if (cmyk) {
-            const k = channels[i + 3];
-            r += (channels[i] * k) / 255;
-            g += (channels[i + 1] * k) / 255;
-            b += (channels[i + 2] * k) / 255;
-          } else {
-            r += channels[i];
-            g += channels[i + 1];
-            b += channels[i + 2];
-          }
-          n++;
-        }
-      }
-      const o = (oy * outW + ox) * 4;
-      out[o] = r / n;
-      out[o + 1] = g / n;
-      out[o + 2] = b / n;
-      out[o + 3] = 255;
-    }
-  }
-
-  return jpeg.encode({ data: out, width: outW, height: outH }, 82).data;
+  return cover?.bytes ?? null;
 }
 
 /**
@@ -257,13 +173,14 @@ function decodeToRgba(raw: Uint8Array): { rgba: Uint8Array; width: number; heigh
  *
  * Kept in its own function so the JpegImage — which also holds the decoder's
  * large internal component buffers — is out of scope the moment this returns,
- * leaving only the `channels` array live for the caller's pixel work. On a
- * 128MB Worker that headroom is the difference between a hero thumbnail and an
- * out-of-memory crash.
+ * leaving only the `channels` array live for the caller's pixel work.
  *
- * The memory guard is a deliberate circuit breaker: an image too large to
- * decode within the isolate throws here rather than tripping the runtime's own
- * limit, so a caller can catch it and carry on without the picture.
+ * The only caller left in the isolate is step-photo conversion, and step photos
+ * are pre-filtered to under 4 megapixels — a decode that costs well under
+ * 128MB. The cover, which does not fit, no longer comes through here. The
+ * memory guard is a backstop: an image that would somehow blow the isolate
+ * throws here rather than tripping the runtime's own limit, so the caller can
+ * catch it and carry on without the picture.
  */
 function decodeChannels(raw: Uint8Array): {
   channels: Uint8Array;
@@ -272,9 +189,9 @@ function decodeChannels(raw: Uint8Array): {
   perPixel: number;
 } {
   const image = new JpegImage();
-  image.opts = { useTArray: true, tolerantDecoding: true, maxResolutionInMP: 40, maxMemoryUsageInMB: 96 };
+  image.opts = { useTArray: true, tolerantDecoding: true, maxResolutionInMP: 8, maxMemoryUsageInMB: 128 };
   // The guard is module-scoped and starts at zero, so it must be armed per image.
-  JpegImage.resetMaxMemoryUsage(96 * 1024 * 1024);
+  JpegImage.resetMaxMemoryUsage(128 * 1024 * 1024);
   image.parse(raw);
 
   const { width, height } = image;

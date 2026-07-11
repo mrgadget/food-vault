@@ -4,7 +4,8 @@ import { extractFromSource } from "@/lib/ai/extract";
 import { matchPhotosToSteps } from "@/lib/ai/match-photos";
 import { deleteRecipe, findRecipesBySourceUrl, saveRecipe, type SavedImage } from "@/lib/db/recipes";
 import { fetchImage, fetchSource, type Source } from "@/lib/import/fetch-page";
-import { extractHeroImage, extractStepPhotos, prepareHeroJpeg } from "@/lib/import/pdf-images";
+import { resizeToHero } from "@/lib/import/images";
+import { extractStepPhotos, findCoverBytes } from "@/lib/import/pdf-images";
 import { streamJob, type Progress } from "@/lib/job-stream";
 import { IMAGE_BUCKET } from "@/lib/supabase/schema";
 import { createClient } from "@/lib/supabase/server";
@@ -75,7 +76,10 @@ async function webHero(
   const fetched = await fetchImage(source.heroUrl);
   if (!fetched) return [];
 
-  const hero = prepareHeroJpeg(fetched.bytes, fetched.mimeType);
+  // Downscale through the Images binding when it is available; otherwise store
+  // the fetched image as-is — a web hero is already a browser-displayable RGB
+  // format, so the original is a fine fallback.
+  const hero = (await resizeToHero(fetched.bytes)) ?? { bytes: fetched.bytes, mimeType: fetched.mimeType };
   const storagePath = `${userId}/${crypto.randomUUID()}/hero.${extensionFor(hero.mimeType)}`;
   const { error } = await supabase.storage
     .from(IMAGE_BUCKET)
@@ -128,12 +132,13 @@ async function archiveCard(
       mimeType: "application/pdf",
     });
 
-    const hero = await extractHeroImage(pdf);
+    const coverBytes = await findCoverBytes(pdf);
+    const hero = coverBytes ? await resizeToHero(coverBytes) : null;
     if (hero) {
       uploads.push({
-        storagePath: await upload("hero.jpg", hero, "image/jpeg"),
+        storagePath: await upload("hero.jpg", hero.bytes, hero.mimeType),
         kind: "hero",
-        mimeType: "image/jpeg",
+        mimeType: hero.mimeType,
       });
     }
 

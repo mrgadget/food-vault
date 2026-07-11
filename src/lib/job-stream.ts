@@ -14,18 +14,32 @@
 
 export type JobEvent =
   | { type: "status"; message: string }
+  | { type: "ping" }
   | { type: "done"; id: string }
   | { type: "error"; message: string };
 
 export type Progress = (message: string) => void;
+
+/**
+ * The longest a single step may run silently. Extraction is one ~40s API call
+ * that emits nothing while it waits, and a proxy in the path will drop a stream
+ * that produces no bytes for long enough. A heartbeat under that window keeps
+ * the connection warm through the quiet stretches.
+ */
+const HEARTBEAT_MS = 5_000;
 
 export function streamJob(run: (progress: Progress) => Promise<string>): Response {
   const encoder = new TextEncoder();
 
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (event: JobEvent) =>
+      let open = true;
+      const send = (event: JobEvent) => {
+        if (!open) return;
         controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      };
+
+      const heartbeat = setInterval(() => send({ type: "ping" }), HEARTBEAT_MS);
 
       try {
         const id = await run((message) => send({ type: "status", message }));
@@ -33,6 +47,8 @@ export function streamJob(run: (progress: Progress) => Promise<string>): Respons
       } catch (error) {
         send({ type: "error", message: userFacingMessage(error) });
       } finally {
+        clearInterval(heartbeat);
+        open = false;
         controller.close();
       }
     },
@@ -93,7 +109,9 @@ export async function readJobStream(
       if (!line.trim()) continue;
       const event = JSON.parse(line) as JobEvent;
       if (event.type === "status") onStatus(event.message);
-      else outcome = event;
+      // Heartbeats (and any unknown event) are ignored; only a terminal event
+      // resolves the job.
+      else if (event.type === "done" || event.type === "error") outcome = event;
     }
   }
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { extractFromImages, type ImageInput } from "@/lib/ai/extract";
 import { saveFood, type SavedImage } from "@/lib/db/foods";
+import { cropToHeroJpeg } from "@/lib/import/pdf-images";
 import { streamJob } from "@/lib/job-stream";
 import { deleteImages, objectKey, putImage } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -62,6 +63,21 @@ export async function POST(request: Request) {
         const storagePath = objectKey(foodId, `photo-${i + 1}.${extension}`);
         await putImage(storagePath, bytes, files[i].type);
         uploaded.push({ storagePath, kind: normalizeKind(kinds[i]), mimeType: files[i].type });
+      }
+
+      // A photo import has no embedded images, so the hero is cropped from the
+      // dish photo the model pointed at. Best-effort: a bad box or an oversized
+      // decode just leaves the food without a hero, never fails the import.
+      const hero = food.heroImage;
+      const index = hero ? hero.imageIndex - 1 : -1; // the model numbers photos from 1
+      if (hero && index >= 0 && index < buffers.length && hero.width > 0 && hero.height > 0) {
+        try {
+          const storagePath = objectKey(foodId, "hero.jpg");
+          await putImage(storagePath, cropToHeroJpeg(buffers[index], hero), "image/jpeg");
+          uploaded.push({ storagePath, kind: "hero", mimeType: "image/jpeg" });
+        } catch (error) {
+          console.error("Photo hero crop failed", error);
+        }
       }
     } catch (error) {
       await deleteImages(uploaded.map((image) => image.storagePath));

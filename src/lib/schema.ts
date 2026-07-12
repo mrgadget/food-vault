@@ -55,6 +55,20 @@ export const stepSchema = z.object({
   inferred: z.boolean().describe("True if this step was not stated in the source"),
 });
 
+/**
+ * A photo import has no embedded images to lift out, so the hero is cropped from
+ * one of the uploaded photographs. The model points at the finished-dish photo
+ * and boxes it; the crop happens server-side. Coordinates are fractions of the
+ * image (0-1), so they hold whatever that photo's pixel size turns out to be.
+ */
+export const heroImageSchema = z.object({
+  imageIndex: z.number().int().describe("Which photograph holds the dish, numbered from 1 as labelled above"),
+  x: z.number().describe("Left edge of the crop, 0-1 across the image width"),
+  y: z.number().describe("Top edge of the crop, 0-1 down the image height"),
+  width: z.number().describe("Crop width, 0-1 of the image width"),
+  height: z.number().describe("Crop height, 0-1 of the image height"),
+});
+
 export const foodCourses = [
   "main",
   "starter",
@@ -86,6 +100,11 @@ export const foodSchema = z.object({
     .string()
     .nullable()
     .describe("Plain-English summary of what was inferred and why"),
+  heroImage: heroImageSchema
+    .nullable()
+    .describe(
+      "Photo imports only: the finished-dish photo to crop as the hero. Null when no photograph shows an appetising finished dish, and always null for web or PDF sources.",
+    ),
 });
 
 export type Ingredient = z.infer<typeof ingredientSchema>;

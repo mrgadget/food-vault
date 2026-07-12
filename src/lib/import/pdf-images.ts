@@ -38,6 +38,8 @@ export type PdfImage = {
 const MIN_PHOTO_EDGE = 400;
 /** The hero shot dwarfs the step photos; it is the card's cover, not a step. */
 const HERO_MEGAPIXELS = 4;
+/** Longest edge of a stored hero thumbnail. */
+const HERO_MAX_EDGE = 900;
 
 type RawImage = { page: number; width: number; height: number; bytes: Uint8Array };
 
@@ -166,6 +168,77 @@ function decodeToRgba(raw: Uint8Array): { rgba: Uint8Array; width: number; heigh
   }
 
   return { rgba, width, height };
+}
+
+/**
+ * Crop a photograph to its hero: the model boxes the finished dish as fractions
+ * of the image, and this cuts that region out and box-averages it down to a
+ * thumbnail.
+ *
+ * The photo is resized to ~1568px on the client before upload — the size the
+ * vision API works at anyway — so this decodes and crops comfortably inside the
+ * isolate. The box is padded slightly and clamped to the image, so a loose or
+ * off-edge box still yields a sensible crop; a photo too large to decode safely
+ * throws (decodeChannels' guard), and the caller then stores no hero.
+ */
+export function cropToHeroJpeg(
+  raw: Uint8Array,
+  box: { x: number; y: number; width: number; height: number },
+): Uint8Array {
+  const { rgba, width, height } = decodeToRgba(raw);
+
+  // Pad a little so a tight box doesn't shave the plate, then clamp to the image.
+  const pad = 0.04;
+  const left = clamp01(box.x - pad);
+  const top = clamp01(box.y - pad);
+  const right = clamp01(box.x + box.width + pad);
+  const bottom = clamp01(box.y + box.height + pad);
+
+  const cx0 = Math.floor(left * width);
+  const cy0 = Math.floor(top * height);
+  const cropW = Math.max(1, Math.round((right - left) * width));
+  const cropH = Math.max(1, Math.round((bottom - top) * height));
+
+  const scale = Math.min(1, HERO_MAX_EDGE / Math.max(cropW, cropH));
+  const outW = Math.max(1, Math.round(cropW * scale));
+  const outH = Math.max(1, Math.round(cropH * scale));
+  const out = new Uint8Array(outW * outH * 4);
+
+  for (let oy = 0; oy < outH; oy++) {
+    const ry0 = Math.floor((oy * cropH) / outH);
+    const ry1 = Math.max(ry0 + 1, Math.floor(((oy + 1) * cropH) / outH));
+    for (let ox = 0; ox < outW; ox++) {
+      const rx0 = Math.floor((ox * cropW) / outW);
+      const rx1 = Math.max(rx0 + 1, Math.floor(((ox + 1) * cropW) / outW));
+
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let ry = ry0; ry < ry1; ry++) {
+        const y = cy0 + ry;
+        if (y < 0 || y >= height) continue;
+        for (let rx = rx0; rx < rx1; rx++) {
+          const x = cx0 + rx;
+          if (x < 0 || x >= width) continue;
+          const i = (y * width + x) * 4;
+          r += rgba[i];
+          g += rgba[i + 1];
+          b += rgba[i + 2];
+          n++;
+        }
+      }
+      const o = (oy * outW + ox) * 4;
+      const count = n || 1;
+      out[o] = r / count;
+      out[o + 1] = g / count;
+      out[o + 2] = b / count;
+      out[o + 3] = 255;
+    }
+  }
+
+  return jpeg.encode({ data: out, width: outW, height: outH }, 85).data;
+}
+
+function clamp01(v: number): number {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
 /**

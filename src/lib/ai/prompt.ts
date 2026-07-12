@@ -48,7 +48,9 @@ Do not editorialize about the recipe. Do not add commentary, serving suggestions
 
 export const PHOTO_USER_PROMPT = `These photographs are of a single recipe — typically the front of the card (title, ingredients, photo) and the back (numbered instructions). Read every photograph before extracting; the ingredient list and the steps that use those ingredients are usually on different images.
 
-If text is cut off or illegible, extract what you can read and note the gap in aiNotes rather than guessing at the missing words.`;
+If text is cut off or illegible, extract what you can read and note the gap in aiNotes rather than guessing at the missing words.
+
+Then choose the hero image. Look across every photograph for the single most appetising shot of the FINISHED dish — the plated, cooked food. It is usually the large photo on the front of the card, but it may be a photo of the actual cooked dish if the cook took one. Set heroImage to that photograph's number (1 for the first shown above) and a tight bounding box around just the food, as fractions of that image: x and y for the top-left corner, width and height for the size. Box the food itself, not the whole card, and exclude title text, borders, and hands. If none of the photographs shows a finished, plated dish — only raw ingredients, printed steps, or the card as a document — set heroImage to null.`;
 
 export const PDF_USER_PROMPT = (url: string) =>
   `The document above is a recipe card, downloaded from ${url}. Read every page before extracting: a meal-kit card puts the ingredient list and the numbered method on different pages, and the pantry items it assumes you already own are usually printed separately from the ingredients it ships you.

@@ -175,6 +175,39 @@ function UrlImport() {
  * The photo import streams its progress, so a failure can arrive on a 200
  * response. Validation failures still come back as ordinary JSON errors.
  */
+/** The longest edge Anthropic's vision API keeps; larger uploads gain nothing. */
+const UPLOAD_MAX_EDGE = 1568;
+
+/**
+ * Resize a photo to UPLOAD_MAX_EDGE and re-encode as JPEG in the browser.
+ *
+ * Extraction is unaffected (the API downsizes to this size regardless), the
+ * upload shrinks, HEIC/PNG/etc. become JPEG the server can decode, and — because
+ * the server crops the hero from exactly these bytes — the crop stays within a
+ * Worker's memory. Throws if the browser can't decode the file; the caller then
+ * falls back to the original.
+ */
+async function downscaleForUpload(file: File): Promise<Blob> {
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  try {
+    const scale = Math.min(1, UPLOAD_MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.85),
+    );
+    return blob ?? file;
+  } finally {
+    bitmap.close();
+  }
+}
+
 async function submitImport(
   url: string,
   init: RequestInit,
@@ -220,15 +253,25 @@ function PhotoImport() {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    setStatus("Uploading…");
+    setStatus("Preparing photos…");
     setError(null);
 
     const form = new FormData();
     for (const shot of shots) {
-      form.append("images", shot.file);
+      // Shrink to the size the vision API works at anyway; this also normalises
+      // to JPEG so the server can decode it, and keeps the hero crop small
+      // enough to run in a Worker. On any failure, send the original.
+      let payload: Blob = shot.file;
+      try {
+        payload = await downscaleForUpload(shot.file);
+      } catch {
+        payload = shot.file;
+      }
+      form.append("images", payload, "photo.jpg");
       form.append("kinds", shot.kind);
     }
 
+    setStatus("Uploading…");
     try {
       const id = await submitImport("/api/import/photos", { method: "POST", body: form }, setStatus);
       router.push(`/foods/${id}`);

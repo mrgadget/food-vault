@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
@@ -11,7 +10,6 @@ type Mode = "signin" | "signup";
 const MIN_PASSWORD = 8;
 
 export default function LoginPage() {
-  const router = useRouter();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,9 +53,12 @@ export default function LoginPage() {
       }
     }
 
-    // The session lives in a cookie the server has not seen yet.
-    router.refresh();
-    router.push("/");
+    // Sign-in just set the session cookie, but the header lives in the root
+    // layout, which the server already rendered — logged out — before the cookie
+    // existed. A client navigation would reuse that cached layout, so leave the
+    // SPA and do a full load: the server re-renders with the session and the
+    // header is right on arrival.
+    window.location.assign("/");
   }
 
   if (confirmSent) {

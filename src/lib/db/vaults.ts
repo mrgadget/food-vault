@@ -48,19 +48,19 @@ export async function ensureVaults(supabase: ServerClient, email: string): Promi
   if (existing.length > 0) return existing;
 
   const name = `${email.split("@")[0]}'s vault`;
-  const { data: sub, error } = await supabase
-    .from("subscriptions")
-    .insert({ name })
-    .select("id, name, status")
-    .single();
-  if (error || !sub) throw new Error(`Could not create your vault: ${error?.message ?? "no row"}`);
+  // The id is chosen here rather than read back: RLS cannot see the new vault
+  // until the owner membership below exists, so a select-after-insert would
+  // return nothing and throw. Insert both, then report the vault we just made.
+  const id = crypto.randomUUID();
+  const { error } = await supabase.from("subscriptions").insert({ id, name });
+  if (error) throw new Error(`Could not create your vault: ${error.message}`);
 
   const { error: memberError } = await supabase
     .from("subscription_members")
-    .insert({ subscription_id: sub.id, member_email: email.toLowerCase(), role: "owner" });
+    .insert({ subscription_id: id, member_email: email.toLowerCase(), role: "owner" });
   if (memberError) throw new Error(memberError.message);
 
-  return [{ id: sub.id, name: sub.name, role: "owner", status: sub.status }];
+  return [{ id, name, role: "owner", status: "active" }];
 }
 
 /**

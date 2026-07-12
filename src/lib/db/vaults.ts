@@ -49,22 +49,15 @@ export async function ensureVaults(supabase: ServerClient, email: string): Promi
   const existing = await listVaults(supabase, email);
   if (existing.some((v) => v.role === "owner")) return existing;
 
-  // A friendly default the owner can rename on the Sharing page.
+  // A friendly default the owner can rename on the Sharing page. Creation goes
+  // through a SECURITY DEFINER function so the vault and its owner row are made
+  // in one shot without tripping RLS (see migration 0013).
   const name = "My FoodVault";
-  // The id is chosen here rather than read back: RLS cannot see the new vault
-  // until the owner membership below exists, so a select-after-insert would
-  // return nothing and throw. Insert both, then report the vault we just made.
-  const id = crypto.randomUUID();
-  const { error } = await supabase.from("subscriptions").insert({ id, name });
+  const { data: newId, error } = await supabase.rpc("create_vault", { vault_name: name });
   if (error) throw new Error(`Could not create your vault: ${error.message}`);
 
-  const { error: memberError } = await supabase
-    .from("subscription_members")
-    .insert({ subscription_id: id, member_email: email.toLowerCase(), role: "owner" });
-  if (memberError) throw new Error(memberError.message);
-
   // Their own vault first, then any vaults they were already invited into.
-  return [{ id, name, role: "owner", status: "active" }, ...existing];
+  return [{ id: newId as string, name, role: "owner", status: "active" }, ...existing];
 }
 
 /**

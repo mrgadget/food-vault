@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { listFoods, type FoodSummary } from "@/lib/db/foods";
+import { canEdit, getActiveVault } from "@/lib/db/vaults";
 import { imageUrls } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 
@@ -48,21 +49,29 @@ export default async function HomePage({
   }
 
   const { course, protein, vegetable } = await searchParams;
-  const foods = await listFoods(supabase);
+  const { active } = await getActiveVault(supabase, auth.user.email ?? "");
+  const foods = await listFoods(supabase, active.id);
+  const writable = canEdit(active.role);
 
   if (foods.length === 0) {
     return (
       <div className="rounded-card border border-dashed border-line bg-surface/60 p-14 text-center">
-        <h1 className="font-display text-2xl font-semibold">Nothing in the vault yet</h1>
+        <h1 className="font-display text-2xl font-semibold">
+          {writable ? "Nothing in the vault yet" : `Nothing in ${active.name} yet`}
+        </h1>
         <p className="mx-auto mt-2 max-w-sm text-muted">
-          Import a food from a URL, or photograph the front and back of a food card.
+          {writable
+            ? "Import a food from a URL, or photograph the front and back of a food card."
+            : "This vault is empty, or nothing has been shared into it yet."}
         </p>
-        <Link
-          href="/import"
-          className="mt-6 inline-block rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-accent-fg shadow-sm transition-transform hover:-translate-y-px"
-        >
-          Add your first food
-        </Link>
+        {writable && (
+          <Link
+            href="/import"
+            className="mt-6 inline-block rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-accent-fg shadow-sm transition-transform hover:-translate-y-px"
+          >
+            Add your first food
+          </Link>
+        )}
       </div>
     );
   }
@@ -87,7 +96,12 @@ export default async function HomePage({
   return (
     <>
       <div className="flex items-baseline justify-between gap-4">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Your foods</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">
+          {active.role === "owner" ? "Your foods" : active.name}
+          {!writable && (
+            <span className="ml-2 align-middle text-xs font-medium uppercase tracking-wide text-muted">read-only</span>
+          )}
+        </h1>
         <span className="text-sm text-muted">
           {visible.length === foods.length
             ? `${foods.length} food${foods.length === 1 ? "" : "s"}`

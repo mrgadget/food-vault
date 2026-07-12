@@ -22,6 +22,9 @@ export type SavedImage = {
 export async function saveFood(
   supabase: ServerClient,
   userId: string,
+  // The vault this food belongs to. RLS allows the insert only if the user is
+  // its owner or editor. user_id is kept as "who added it".
+  subscriptionId: string,
   food: Food,
   source: { source: "url" | "photo" | "manual"; sourceUrl?: string },
   images: SavedImage[] = [],
@@ -34,6 +37,7 @@ export async function saveFood(
     .insert({
       id,
       user_id: userId,
+      subscription_id: subscriptionId,
       title: food.title,
       description: food.description,
       source: source.source,
@@ -172,12 +176,13 @@ function heroPathFrom(images: ImageForHero[]): string | null {
  * personal food vault holds hundreds of rows, not millions. If that ever
  * stops being true, this is the thing to move into Postgres.
  */
-export async function listFoods(supabase: ServerClient): Promise<FoodSummary[]> {
+export async function listFoods(supabase: ServerClient, subscriptionId: string): Promise<FoodSummary[]> {
   const { data, error } = await supabase
     .from("foods")
     .select(
       "id, title, description, cuisine, course, rating, servings, prep_minutes, cook_minutes, created_at, ingredients (category, canonical), food_images (kind, storage_path)",
     )
+    .eq("subscription_id", subscriptionId)
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
 
@@ -201,17 +206,19 @@ export async function setFoodRating(
 }
 
 /**
- * Existing foods imported from the same URL — so a re-import can offer to
- * replace or skip rather than silently duplicating. RLS scopes it to the user.
- * More than one can come back if duplicates were made before this check existed.
+ * Existing foods in this vault imported from the same URL — so a re-import can
+ * offer to replace or skip rather than silently duplicating. Scoped to the one
+ * vault, since the same recipe may legitimately live in several.
  */
 export async function findFoodsBySourceUrl(
   supabase: ServerClient,
+  subscriptionId: string,
   sourceUrl: string,
 ): Promise<{ id: string; title: string }[]> {
   const { data, error } = await supabase
     .from("foods")
     .select("id, title")
+    .eq("subscription_id", subscriptionId)
     .eq("source_url", sourceUrl);
   if (error) throw new Error(error.message);
   return (data ?? []) as { id: string; title: string }[];

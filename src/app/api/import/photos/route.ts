@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { extractFromImages, type ImageInput } from "@/lib/ai/extract";
 import { saveFood, type SavedImage } from "@/lib/db/foods";
+import { canEdit, getActiveVault } from "@/lib/db/vaults";
 import { cropToHeroJpeg } from "@/lib/import/pdf-images";
 import { streamJob } from "@/lib/job-stream";
 import { deleteImages, objectKey, putImage } from "@/lib/storage";
@@ -16,8 +17,13 @@ type Accepted = (typeof ACCEPTED)[number];
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) {
+  if (!auth.user?.email) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  }
+
+  const { active } = await getActiveVault(supabase, auth.user.email);
+  if (!canEdit(active.role)) {
+    return NextResponse.json({ error: "You have read-only access to this vault." }, { status: 403 });
   }
 
   const form = await request.formData().catch(() => null);
@@ -85,7 +91,7 @@ export async function POST(request: Request) {
     }
 
     progress("Saving the food…");
-    return saveFood(supabase, auth.user.id, food, { source: "photo" }, uploaded, foodId);
+    return saveFood(supabase, auth.user.id, active.id, food, { source: "photo" }, uploaded, foodId);
   });
 }
 

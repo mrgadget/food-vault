@@ -5,7 +5,15 @@ import { useState } from "react";
 
 const STARS = [1, 2, 3, 4, 5];
 
-export function StarRating({ foodId, initial }: { foodId: string; initial: number | null }) {
+export function StarRating({
+  foodId,
+  initial,
+  readOnly = false,
+}: {
+  foodId: string;
+  initial: number | null;
+  readOnly?: boolean;
+}) {
   const router = useRouter();
   const [rating, setRating] = useState(initial);
   const [hover, setHover] = useState<number | null>(null);
@@ -33,6 +41,22 @@ export function StarRating({ foodId, initial }: { foodId: string; initial: numbe
 
   // While hovering, preview the rating the cursor would set.
   const shown = hover ?? rating ?? 0;
+
+  // A viewer sees the rating but cannot change it.
+  if (readOnly) {
+    return (
+      <div className="flex items-center gap-2">
+        <div className="flex text-2xl leading-none">
+          {STARS.map((star) => (
+            <span key={star} className={star <= (rating ?? 0) ? "text-accent" : "text-line"}>
+              ★
+            </span>
+          ))}
+        </div>
+        {rating !== null && <span className="text-sm text-muted">{rating}/5</span>}
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-2">

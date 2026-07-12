@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { extractFromSource } from "@/lib/ai/extract";
 import { matchPhotosToSteps } from "@/lib/ai/match-photos";
 import { deleteFood, findFoodsBySourceUrl, saveFood, type SavedImage } from "@/lib/db/foods";
+import { canEdit, getActiveVault } from "@/lib/db/vaults";
 import { fetchImage, fetchSource, type Source } from "@/lib/import/fetch-page";
 import { decodeCoverToJpeg } from "@/lib/import/cover-hero";
 import { extractStepPhotos, findCoverBytes } from "@/lib/import/pdf-images";
@@ -14,7 +15,7 @@ import type { Food } from "@/lib/schema";
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) {
+  if (!auth.user?.email) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
 
@@ -25,9 +26,16 @@ export async function POST(request: Request) {
   }
   const onExisting: unknown = body?.onExisting;
 
+  // Imports land in the vault the user is currently working in; they must be
+  // able to write to it.
+  const { active } = await getActiveVault(supabase, auth.user.email);
+  if (!canEdit(active.role)) {
+    return NextResponse.json({ error: "You have read-only access to this vault." }, { status: 403 });
+  }
+
   // Re-importing the same link would otherwise silently make a second copy.
   // Before doing any slow work, check — and let the client decide.
-  const existing = await findFoodsBySourceUrl(supabase, url);
+  const existing = await findFoodsBySourceUrl(supabase, active.id, url);
   if (existing.length > 0 && onExisting !== "replace" && onExisting !== "skip") {
     return NextResponse.json({
       duplicate: { title: existing[0].title, count: existing.length },
@@ -58,7 +66,7 @@ export async function POST(request: Request) {
         : await webHero(foodId, source, progress);
 
     progress("Saving…");
-    const id = await saveFood(supabase, auth.user.id, food, { source: "url", sourceUrl: url }, images, foodId);
+    const id = await saveFood(supabase, auth.user.id, active.id, food, { source: "url", sourceUrl: url }, images, foodId);
 
     for (const oldId of replacedIds) await deleteFood(supabase, oldId);
     return id;

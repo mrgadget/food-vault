@@ -39,13 +39,15 @@ export async function listVaults(supabase: ServerClient, email: string): Promise
 }
 
 /**
- * Every user has at least their own vault. A fresh sign-up has none, so create
- * one the first time we look. The insert policies allow creating a vault and
- * seeding yourself as its sole owner.
+ * Every user gets their own vault. Create it the first time we find they own
+ * none — checking ownership, not mere membership, because someone invited to
+ * another vault before they signed up already has a membership but still needs
+ * a vault of their own. The insert policies allow creating a vault and seeding
+ * yourself as its sole owner.
  */
 export async function ensureVaults(supabase: ServerClient, email: string): Promise<Vault[]> {
   const existing = await listVaults(supabase, email);
-  if (existing.length > 0) return existing;
+  if (existing.some((v) => v.role === "owner")) return existing;
 
   const name = `${email.split("@")[0]}'s vault`;
   // The id is chosen here rather than read back: RLS cannot see the new vault
@@ -60,7 +62,8 @@ export async function ensureVaults(supabase: ServerClient, email: string): Promi
     .insert({ subscription_id: id, member_email: email.toLowerCase(), role: "owner" });
   if (memberError) throw new Error(memberError.message);
 
-  return [{ id, name, role: "owner", status: "active" }];
+  // Their own vault first, then any vaults they were already invited into.
+  return [{ id, name, role: "owner", status: "active" }, ...existing];
 }
 
 /**

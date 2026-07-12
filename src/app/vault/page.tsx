@@ -1,7 +1,7 @@
 import { getActiveVault, listMembers } from "@/lib/db/vaults";
 import { createClient } from "@/lib/supabase/server";
 
-import { MembersManager } from "./members-manager";
+import { VaultManager } from "./vault-manager";
 
 /**
  * Manage who can reach the active vault. Owners invite people by email and set
@@ -21,25 +21,12 @@ export default async function VaultPage() {
     <div className="mx-auto max-w-2xl">
       <h1 className="font-display text-3xl font-semibold tracking-tight">Sharing</h1>
       <p className="mt-1.5 text-muted">
-        Who can reach <span className="font-medium text-ink">{active.name}</span>.{" "}
         {isOwner
-          ? "Invite people by email — viewers can browse, editors can also add and change recipes."
-          : `You have ${active.role} access to this vault.`}
+          ? "Rename your vault and invite people by email — viewers can browse, editors can also add and change recipes."
+          : `You have ${active.role} access to this vault. Only the owner can change its name or members.`}
       </p>
 
-      <MembersManager
-        vaultId={active.id}
-        members={members}
-        isOwner={isOwner}
-        me={auth.user.email.toLowerCase()}
-      />
-
-      {!isOwner && (
-        <p className="mt-6 text-sm text-muted">
-          Only the owner can change who has access. To manage your own vault, switch to it in the
-          header.
-        </p>
-      )}
+      <VaultManager vault={active} members={members} me={auth.user.email.toLowerCase()} />
     </div>
   );
 }

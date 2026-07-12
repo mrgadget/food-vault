@@ -78,6 +78,12 @@ export async function getActiveVault(
   return { vaults, active };
 }
 
+/** Rename a vault. RLS ("owners update their subscriptions") refuses non-owners. */
+export async function renameVault(supabase: ServerClient, vaultId: string, name: string): Promise<void> {
+  const { error } = await supabase.from("subscriptions").update({ name: name.trim() }).eq("id", vaultId);
+  if (error) throw new Error(error.message);
+}
+
 /** The roster of a vault (owners see everyone; RLS refuses non-members). */
 export async function listMembers(supabase: ServerClient, vaultId: string): Promise<Member[]> {
   const { data, error } = await supabase

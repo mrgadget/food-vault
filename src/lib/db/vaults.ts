@@ -49,7 +49,8 @@ export async function ensureVaults(supabase: ServerClient, email: string): Promi
   const existing = await listVaults(supabase, email);
   if (existing.some((v) => v.role === "owner")) return existing;
 
-  const name = `${email.split("@")[0]}'s vault`;
+  // A friendly default the owner can rename on the Sharing page.
+  const name = "My FoodVault";
   // The id is chosen here rather than read back: RLS cannot see the new vault
   // until the owner membership below exists, so a select-after-insert would
   // return nothing and throw. Insert both, then report the vault we just made.

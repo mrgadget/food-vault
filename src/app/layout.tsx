@@ -43,7 +43,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </Link>
               {vault && <VaultSwitcher vaults={vault.vaults} activeId={vault.active.id} />}
             </div>
-            {vault ? (
+            {vault && (
               <div className="flex items-center gap-5">
                 <Link href="/vault" className="text-sm text-muted transition-colors hover:text-ink">
                   Sharing
@@ -61,10 +61,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   </Link>
                 )}
               </div>
-            ) : (
-              <Link href="/login" className="text-sm font-medium text-accent hover:underline">
-                Sign in
-              </Link>
             )}
           </nav>
         </header>

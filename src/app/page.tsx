@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { listFoods, type FoodSummary } from "@/lib/db/foods";
 import { canEdit, getActiveVault } from "@/lib/db/vaults";
@@ -33,20 +34,7 @@ export default async function HomePage({
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getUser();
 
-  if (!auth.user) {
-    return (
-      <div className="mx-auto max-w-md rounded-card border border-line bg-surface p-10 text-center shadow-sm">
-        <p className="font-display text-2xl font-semibold">Your food vault</p>
-        <p className="mt-2 text-muted">Sign in to see everything you&apos;ve saved.</p>
-        <Link
-          href="/login"
-          className="mt-6 inline-block rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-paper shadow-sm transition-transform hover:-translate-y-px"
-        >
-          Sign in
-        </Link>
-      </div>
-    );
-  }
+  if (!auth.user) redirect("/login");
 
   const { course, protein, vegetable } = await searchParams;
   const { active } = await getActiveVault(supabase, auth.user.email ?? "");

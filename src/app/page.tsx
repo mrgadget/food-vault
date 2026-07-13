@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { FilterBar } from "./filter-bar";
+import { FilterBar, FilterResults } from "./filter-bar";
 import { FilterCombo } from "./filter-combo";
 import { SearchBox } from "./search-box";
 import { listFoods, type FoodSummary } from "@/lib/db/foods";
@@ -113,17 +113,17 @@ export default async function HomePage({
             </div>
           </div>
         </div>
-      </FilterBar>
 
-      {visible.length === 0 ? (
-        <p className="mt-12 text-center text-muted">
-          No foods match those filters.{" "}
-          <Link href="/" className="font-medium text-accent hover:underline">
-            Clear them
-          </Link>
-        </p>
-      ) : (
-        <ul className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+        <FilterResults>
+          {visible.length === 0 ? (
+            <p className="mt-12 text-center text-muted">
+              No foods match those filters.{" "}
+              <Link href="/" className="font-medium text-accent hover:underline">
+                Clear them
+              </Link>
+            </p>
+          ) : (
+            <ul className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
           {visible.map((food) => {
             const heroUrl = food.heroPath ? heroUrls.get(food.heroPath) : undefined;
             const meta = [
@@ -183,8 +183,10 @@ export default async function HomePage({
               </li>
             );
           })}
-        </ul>
-      )}
+            </ul>
+          )}
+        </FilterResults>
+      </FilterBar>
     </>
   );
 }

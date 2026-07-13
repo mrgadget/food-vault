@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { FilterCombo } from "./filter-combo";
+import { SearchBox } from "./search-box";
 import { listFoods, type FoodSummary } from "@/lib/db/foods";
 import { canEdit, getActiveVault } from "@/lib/db/vaults";
 import { imageUrls } from "@/lib/storage";
@@ -24,7 +26,7 @@ const COURSE_ORDER = [
   "other",
 ];
 
-type Search = { course?: string; protein?: string; vegetable?: string };
+type Search = { course?: string; protein?: string; vegetable?: string; q?: string };
 
 export default async function HomePage({
   searchParams,
@@ -36,7 +38,7 @@ export default async function HomePage({
 
   if (!auth.user) redirect("/login");
 
-  const { course, protein, vegetable } = await searchParams;
+  const { course, protein, vegetable, q } = await searchParams;
   const { active } = await getActiveVault(supabase, auth.user.email ?? "");
   const foods = await listFoods(supabase, active.id);
   const writable = canEdit(active.role);
@@ -70,9 +72,11 @@ export default async function HomePage({
   const proteins = facet(foods, "protein");
   const vegetables = facet(foods, "vegetable");
 
+  const courseSel = parseList(course);
   const visible = foods.filter(
     (food) =>
-      (!course || food.course === course) &&
+      matchesText(food, q) &&
+      (courseSel.length === 0 || courseSel.includes(food.course)) &&
       matchesProtein(food, protein) &&
       matchesVegetable(food, vegetable),
   );
@@ -97,21 +101,15 @@ export default async function HomePage({
         </span>
       </div>
 
-      <div className="mt-6 space-y-2.5 rounded-card border border-line bg-surface/70 p-4">
-        <FilterRow label="Course" param="course" search={{ course, protein, vegetable }} options={courses} />
-        <FilterRow
-          label="Protein"
-          param="protein"
-          search={{ course, protein, vegetable }}
-          options={proteins}
-          extra={[NO_PROTEIN]}
-        />
-        <FilterRow
-          label="Vegetable"
-          param="vegetable"
-          search={{ course, protein, vegetable }}
-          options={vegetables}
-        />
+      <div className="mt-6 rounded-card border border-line bg-surface/70 p-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <SearchBox initial={q ?? ""} />
+          <div className="flex flex-wrap gap-2">
+            <FilterCombo label="Course" param="course" options={courses} />
+            <FilterCombo label="Protein" param="protein" options={proteins} extra={[NO_PROTEIN]} />
+            <FilterCombo label="Vegetable" param="vegetable" options={vegetables} />
+          </div>
+        </div>
       </div>
 
       {visible.length === 0 ? (
@@ -122,7 +120,7 @@ export default async function HomePage({
           </Link>
         </p>
       ) : (
-        <ul className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
           {visible.map((food) => {
             const heroUrl = food.heroPath ? heroUrls.get(food.heroPath) : undefined;
             const meta = [
@@ -134,11 +132,13 @@ export default async function HomePage({
 
             return (
               <li key={food.id}>
+                {/* Mobile: a compact row — thumbnail left, text right. From sm up
+                    it unfolds into the taller image-on-top card. */}
                 <Link
                   href={`/foods/${food.id}`}
-                  className="group flex h-full flex-col overflow-hidden rounded-card border border-line bg-surface shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+                  className="group flex h-full flex-row overflow-hidden rounded-card border border-line bg-surface shadow-sm transition-all hover:shadow-md sm:flex-col sm:hover:-translate-y-0.5"
                 >
-                  <div className="relative aspect-[4/3] overflow-hidden bg-accent-soft">
+                  <div className="relative aspect-square w-24 shrink-0 overflow-hidden bg-accent-soft sm:aspect-[4/3] sm:w-full">
                     {heroUrl ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
@@ -147,29 +147,31 @@ export default async function HomePage({
                         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                       />
                     ) : (
-                      <span className="flex h-full w-full items-center justify-center font-display text-4xl font-semibold text-accent/40">
+                      <span className="flex h-full w-full items-center justify-center font-display text-2xl font-semibold text-accent/40 sm:text-4xl">
                         {food.title.slice(0, 1).toUpperCase()}
                       </span>
                     )}
                     {food.course !== "other" && (
-                      <span className="absolute left-3 top-3 rounded-full bg-paper/90 px-2.5 py-1 text-xs font-medium capitalize text-ink shadow-sm backdrop-blur-sm">
+                      <span className="absolute left-2 top-2 rounded-full bg-paper/90 px-2 py-0.5 text-[10px] font-medium capitalize text-ink shadow-sm backdrop-blur-sm sm:left-3 sm:top-3 sm:px-2.5 sm:py-1 sm:text-xs">
                         {food.course}
                       </span>
                     )}
                   </div>
 
-                  <div className="flex flex-1 flex-col p-4">
-                    <h2 className="font-display text-lg font-semibold leading-snug">{food.title}</h2>
+                  <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-4">
+                    <h2 className="font-display text-base font-semibold leading-snug sm:text-lg">{food.title}</h2>
                     {food.rating !== null && (
                       <div className="mt-1">
                         <Stars value={food.rating} />
                       </div>
                     )}
                     {food.description && (
-                      <p className="mt-1.5 line-clamp-2 text-sm text-muted">{food.description}</p>
+                      <p className="mt-1 line-clamp-1 text-sm text-muted sm:mt-1.5 sm:line-clamp-2">
+                        {food.description}
+                      </p>
                     )}
                     {meta.length > 0 && (
-                      <p className="mt-auto pt-3 text-xs uppercase tracking-wide text-muted">
+                      <p className="mt-auto pt-2 text-xs uppercase tracking-wide text-muted sm:pt-3">
                         {meta.join(" · ")}
                       </p>
                     )}
@@ -202,71 +204,38 @@ function canonicalsIn(food: FoodSummary, category: string): string[] {
     .map((ingredient) => ingredient.canonical as string);
 }
 
+/** A comma-separated filter value → its selected options. */
+function parseList(value: string | undefined): string[] {
+  return value ? value.split(",").filter(Boolean) : [];
+}
+
+/** Free-text match across a food's title, description, cuisine and ingredients. */
+function matchesText(food: FoodSummary, q: string | undefined): boolean {
+  const needle = q?.trim().toLowerCase();
+  if (!needle) return true;
+  const haystack = [food.title, food.description, food.cuisine, ...food.ingredients.map((i) => i.canonical)]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(needle);
+}
+
 function matchesProtein(food: FoodSummary, protein: string | undefined): boolean {
-  if (!protein) return true;
-  const proteins = canonicalsIn(food, "protein");
-  // "none" means vegetarian in the loose sense the cook cares about: no meat,
-  // no fish, nothing the food treats as its protein.
-  return protein === NO_PROTEIN ? proteins.length === 0 : proteins.includes(protein);
+  const selected = parseList(protein);
+  if (selected.length === 0) return true;
+  const have = canonicalsIn(food, "protein");
+  // OR within the facet; "none" means vegetarian in the loose sense the cook
+  // cares about: no meat, no fish, nothing the food treats as its protein.
+  return selected.some((p) => (p === NO_PROTEIN ? have.length === 0 : have.includes(p)));
 }
 
 function matchesVegetable(food: FoodSummary, vegetable: string | undefined): boolean {
-  if (!vegetable) return true;
-  return canonicalsIn(food, "vegetable").includes(vegetable);
+  const selected = parseList(vegetable);
+  if (selected.length === 0) return true;
+  const have = canonicalsIn(food, "vegetable");
+  return selected.some((v) => have.includes(v));
 }
 
-/**
- * Filters are links, not buttons. The page stays a server component, the URL
- * is the state, and a filtered list can be shared or bookmarked.
- */
-function FilterRow({
-  label,
-  param,
-  search,
-  options,
-  extra = [],
-}: {
-  label: string;
-  param: keyof Search;
-  search: Search;
-  options: string[];
-  extra?: string[];
-}) {
-  if (options.length === 0) return null;
-
-  const selected = search[param];
-  const choices = [...extra, ...options];
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="w-16 shrink-0 text-xs font-medium uppercase tracking-wide text-muted">{label}</span>
-      {choices.map((choice) => {
-        const active = selected === choice;
-        // Toggling one filter must not silently drop the other.
-        const next = new URLSearchParams(
-          Object.entries(search).filter(([, value]) => value) as [string, string][],
-        );
-        if (active) next.delete(param);
-        else next.set(param, choice);
-        const query = next.toString();
-
-        return (
-          <Link
-            key={choice}
-            href={query ? `/?${query}` : "/"}
-            className={`rounded-full border px-3 py-1 text-sm capitalize transition-colors ${
-              active
-                ? "border-accent bg-accent text-accent-fg"
-                : "border-line bg-surface text-ink hover:border-accent/50"
-            }`}
-          >
-            {choice}
-          </Link>
-        );
-      })}
-    </div>
-  );
-}
 
 /** Read-only rating for the listing. */
 function Stars({ value }: { value: number }) {

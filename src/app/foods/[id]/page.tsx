@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { DeleteFoodButton } from "./delete-button";
+import { SaveToVaultButton } from "./save-to-vault-button";
 import { StarRating } from "./rating";
 import { ServingsScaler } from "./servings";
 import { getFood } from "@/lib/db/foods";
@@ -81,7 +82,10 @@ export default async function FoodPage({ params }: { params: Promise<{ id: strin
   // Whether the viewer may change this food depends on their role in the vault
   // it belongs to — not on it being "theirs".
   const vaults = await listVaults(supabase, auth.user?.email ?? "");
-  const writable = canEdit(vaults.find((v) => v.id === food.subscription_id)?.role);
+  const myRole = vaults.find((v) => v.id === food.subscription_id)?.role;
+  const writable = canEdit(myRole);
+  // Reading a food in someone else's vault, you can copy it into your own.
+  const savable = auth.user != null && myRole !== "owner";
 
   const system = await getUnitSystem(supabase);
 
@@ -124,7 +128,10 @@ export default async function FoodPage({ params }: { params: Promise<{ id: strin
         <h1 className="font-display text-4xl font-semibold leading-tight tracking-tight">
           {food.title}
         </h1>
-        {writable && <DeleteFoodButton id={food.id} title={food.title} />}
+        <div className="flex shrink-0 items-center gap-2">
+          {savable && <SaveToVaultButton id={food.id} />}
+          {writable && <DeleteFoodButton id={food.id} title={food.title} />}
+        </div>
       </div>
       {food.description && <p className="mt-3 text-lg text-muted">{food.description}</p>}
 

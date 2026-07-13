@@ -1,7 +1,7 @@
 import type { ServerClient } from "@/lib/supabase/server";
 
 import type { Food } from "@/lib/schema";
-import { deleteImages } from "@/lib/storage";
+import { deleteImages, getImage, objectKey, putImage } from "@/lib/storage";
 
 export type SavedImage = {
   storagePath: string;
@@ -266,5 +266,135 @@ export async function getFood(supabase: ServerClient, id: string) {
   data.ingredients.sort((a: { position: number }, b: { position: number }) => a.position - b.position);
   data.steps.sort((a: { position: number }, b: { position: number }) => a.position - b.position);
   return data;
+}
+
+type SourceRow = { id: string; position: number; [key: string]: unknown };
+
+/**
+ * Deep-copy a food into another vault, images and all.
+ *
+ * Used when someone reading a shared vault wants their own editable copy. The
+ * source is read under the caller's RLS (they can see it), and every child row
+ * and storage object is re-created under a fresh food id in `targetVaultId` —
+ * RLS allows the writes only if the caller owns or edits that vault. The copy
+ * starts unrated: a rating belongs to the person who gave it. Same
+ * children-first, delete-on-failure shape as saveFood, since PostgREST gives us
+ * no transaction.
+ */
+export async function copyFood(
+  supabase: ServerClient,
+  sourceId: string,
+  targetVaultId: string,
+  userId: string,
+): Promise<string> {
+  const src = await getFood(supabase, sourceId);
+  if (!src) throw new Error("That food no longer exists.");
+
+  const newId = crypto.randomUUID();
+  const { error: foodError } = await supabase.from("foods").insert({
+    id: newId,
+    user_id: userId,
+    subscription_id: targetVaultId,
+    title: src.title,
+    description: src.description,
+    source: src.source,
+    source_url: src.source_url,
+    course: src.course,
+    servings: src.servings,
+    prep_minutes: src.prep_minutes,
+    cook_minutes: src.cook_minutes,
+    cuisine: src.cuisine,
+    tags: src.tags,
+    ai_notes: src.ai_notes,
+  });
+  if (foodError) throw new Error(`Could not save food: ${foodError.message}`);
+
+  try {
+    const ingredients = src.ingredients as SourceRow[];
+    if (ingredients.length > 0) {
+      const { error } = await supabase.from("ingredients").insert(
+        ingredients.map((row) => {
+          const { id: _id, food_id: _foodId, ...rest } = row as SourceRow & { food_id: string };
+          return { ...rest, food_id: newId };
+        }),
+      );
+      if (error) throw new Error(error.message);
+    }
+
+    const steps = src.steps as SourceRow[];
+    // Old step id → position, so image rows can find their new step by position.
+    const positionByOldStep = new Map<string, number>(steps.map((row) => [row.id, row.position]));
+    let stepIdByPosition = new Map<number, string>();
+    if (steps.length > 0) {
+      const { data: newSteps, error } = await supabase
+        .from("steps")
+        .insert(
+          steps.map((row) => {
+            const { id: _id, food_id: _foodId, created_at: _createdAt, ...rest } = row as SourceRow & {
+              food_id: string;
+            };
+            return { ...rest, food_id: newId };
+          }),
+        )
+        .select("id, position");
+      if (error) throw new Error(error.message);
+      stepIdByPosition = new Map((newSteps ?? []).map((r) => [r.position as number, r.id as string]));
+    }
+
+    const sachets = src.sachet_expansions as SourceRow[];
+    if (sachets.length > 0) {
+      const { error } = await supabase.from("sachet_expansions").insert(
+        sachets.map((row) => {
+          // Drop the ingredient link rather than remap it: it's a cosmetic
+          // best-effort pointer and the expansion renders fine without it.
+          const {
+            id: _id,
+            food_id: _foodId,
+            ingredient_id: _ingredientId,
+            created_at: _createdAt,
+            ...rest
+          } = row as SourceRow & { food_id: string; ingredient_id: string | null };
+          return { ...rest, food_id: newId, ingredient_id: null };
+        }),
+      );
+      if (error) throw new Error(error.message);
+    }
+
+    const images = src.food_images as (SourceRow & {
+      storage_path: string;
+      mime_type: string;
+      step_id: string | null;
+    })[];
+    if (images.length > 0) {
+      const rows = [];
+      for (const image of images) {
+        // Copy the object to a key under the new food id so the copy is
+        // self-contained and survives the original being deleted.
+        const name = image.storage_path.split("/").pop() ?? crypto.randomUUID();
+        const newPath = objectKey(newId, name);
+        const object = await getImage(image.storage_path);
+        if (object) {
+          const bytes = new Uint8Array(await new Response(object.body).arrayBuffer());
+          await putImage(newPath, bytes, object.httpMetadata?.contentType ?? image.mime_type);
+        }
+        const oldPosition = image.step_id === null ? undefined : positionByOldStep.get(image.step_id);
+        rows.push({
+          food_id: newId,
+          position: image.position,
+          storage_path: newPath,
+          mime_type: image.mime_type,
+          kind: image.kind,
+          step_id: oldPosition === undefined ? null : stepIdByPosition.get(oldPosition) ?? null,
+        });
+      }
+      const { error } = await supabase.from("food_images").insert(rows);
+      if (error) throw new Error(error.message);
+    }
+  } catch (error) {
+    await supabase.from("foods").delete().eq("id", newId);
+    throw error;
+  }
+
+  return newId;
 }
 

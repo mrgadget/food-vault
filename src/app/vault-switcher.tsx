@@ -31,7 +31,7 @@ export function VaultSwitcher({ vaults, activeId }: { vaults: Vault[]; activeId:
       value={activeId}
       disabled={busy}
       onChange={(event) => switchTo(event.target.value)}
-      className="max-w-[11rem] truncate rounded-lg border border-line bg-paper px-2.5 py-1.5 text-sm font-medium text-ink"
+      className="min-w-0 max-w-[8rem] truncate rounded-lg border border-line bg-paper px-2.5 py-1.5 text-sm font-medium text-ink sm:max-w-[11rem]"
     >
       {vaults.map((vault) => (
         <option key={vault.id} value={vault.id}>

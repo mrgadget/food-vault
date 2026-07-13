@@ -3,15 +3,20 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { useFilterNav } from "./filter-bar";
+
 function parseList(value: string | null): string[] {
   return value ? value.split(",").filter(Boolean) : [];
 }
 
 /**
  * A compact multi-select for one facet: a single pill that opens a checklist,
- * instead of a wrapping row of chips that swallows the screen on a phone. The
- * URL stays the state — each toggle rewrites this facet's comma list in `?param=`
- * and leaves the others (and the search box) untouched.
+ * instead of a wrapping row of chips that swallows the screen on a phone.
+ *
+ * The URL is still the state, but the checkboxes are backed by local state so a
+ * tick flips instantly instead of waiting on the server round-trip that
+ * re-filters the list. That navigation is debounced — a burst of ticks becomes
+ * one server render — and runs in a transition so it never blocks the UI.
  */
 export function FilterCombo({
   label,
@@ -27,10 +32,20 @@ export function FilterCombo({
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
+  // Freshest search params for the debounced push, so a sibling combo's change
+  // isn't clobbered by a stale snapshot.
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
+
   const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<string[]>(() => parseList(params.get(param)));
+  // Shared with the other filters so one overlay covers any in-flight change.
+  const { run } = useFilterNav();
+  const runRef = useRef(run);
+  runRef.current = run;
+  const touched = useRef(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const selected = parseList(params.get(param));
   const choices = [...extra, ...options];
 
   useEffect(() => {
@@ -49,18 +64,26 @@ export function FilterCombo({
     };
   }, [open]);
 
+  // Push the local selection into the URL once the ticks settle.
+  useEffect(() => {
+    if (!touched.current) return;
+    const handle = setTimeout(() => {
+      const query = new URLSearchParams(paramsRef.current);
+      if (selected.length > 0) query.set(param, selected.join(","));
+      else query.delete(param);
+      const search = query.toString();
+      runRef.current(() => {
+        router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false });
+      });
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [selected, param, pathname, router]);
+
   if (choices.length === 0) return null;
 
-  function apply(next: string[]) {
-    const query = new URLSearchParams(params);
-    if (next.length > 0) query.set(param, next.join(","));
-    else query.delete(param);
-    const search = query.toString();
-    router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false });
-  }
-
   function toggle(choice: string) {
-    apply(selected.includes(choice) ? selected.filter((c) => c !== choice) : [...selected, choice]);
+    touched.current = true;
+    setSelected((cur) => (cur.includes(choice) ? cur.filter((c) => c !== choice) : [...cur, choice]));
   }
 
   return (
@@ -94,7 +117,10 @@ export function FilterCombo({
           {selected.length > 0 && (
             <button
               type="button"
-              onClick={() => apply([])}
+              onClick={() => {
+                touched.current = true;
+                setSelected([]);
+              }}
               className="mb-1 flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-xs font-medium uppercase tracking-wide text-muted hover:bg-surface"
             >
               Clear {label.toLowerCase()}

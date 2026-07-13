@@ -1,18 +1,24 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { useFilterNav } from "./filter-bar";
 
 /**
  * Free-text filter for the food list. Like the chips, the URL is the state — the
  * typed query lives in `?q=`, debounced so it doesn't push a history entry per
- * keystroke, and the other filters are preserved untouched.
+ * keystroke, and the other filters are preserved untouched. The push shares the
+ * filter bar's pending state, so the results overlay covers a search too.
  */
 export function SearchBox({ initial }: { initial: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
   const [value, setValue] = useState(initial);
+  const { run } = useFilterNav();
+  const runRef = useRef(run);
+  runRef.current = run;
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -22,7 +28,9 @@ export function SearchBox({ initial }: { initial: string }) {
       else next.delete("q");
       if (next.toString() === params.toString()) return;
       const query = next.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      runRef.current(() => {
+        router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      });
     }, 200);
     return () => clearTimeout(handle);
     // Only re-run as the user types; a chip toggle updates `params` on its own.

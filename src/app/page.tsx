@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { FilterBar } from "./filter-bar";
 import { FilterCombo } from "./filter-combo";
 import { SearchBox } from "./search-box";
 import { listFoods, type FoodSummary } from "@/lib/db/foods";
@@ -101,16 +102,18 @@ export default async function HomePage({
         </span>
       </div>
 
-      <div className="mt-6 rounded-card border border-line bg-surface/70 p-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <SearchBox initial={q ?? ""} />
-          <div className="flex flex-wrap gap-2">
-            <FilterCombo label="Course" param="course" options={courses} />
-            <FilterCombo label="Protein" param="protein" options={proteins} extra={[NO_PROTEIN]} />
-            <FilterCombo label="Vegetable" param="vegetable" options={vegetables} />
+      <FilterBar>
+        <div className="mt-6 rounded-card border border-line bg-surface/70 p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <SearchBox initial={q ?? ""} />
+            <div className="flex flex-wrap gap-2">
+              <FilterCombo label="Course" param="course" options={courses} />
+              <FilterCombo label="Protein" param="protein" options={proteins} extra={[NO_PROTEIN]} />
+              <FilterCombo label="Vegetable" param="vegetable" options={vegetables} />
+            </div>
           </div>
         </div>
-      </div>
+      </FilterBar>
 
       {visible.length === 0 ? (
         <p className="mt-12 text-center text-muted">

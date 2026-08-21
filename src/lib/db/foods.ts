@@ -225,6 +225,26 @@ export async function findFoodsBySourceUrl(
 }
 
 /**
+ * Just enough of every food in a vault to tell whether something is already
+ * here — by the link it came from, or by its name. Feeds the bulk importer's
+ * duplicate check (see lib/import/hellofresh).
+ */
+export async function listImportKeys(
+  supabase: ServerClient,
+  subscriptionId: string,
+): Promise<{ title: string; sourceUrl: string | null }[]> {
+  const { data, error } = await supabase
+    .from("foods")
+    .select("title, source_url")
+    .eq("subscription_id", subscriptionId);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({
+    title: row.title as string,
+    sourceUrl: (row.source_url as string | null) ?? null,
+  }));
+}
+
+/**
  * Delete a food, its children, and the images it owns.
  *
  * The rows go by cascade. The storage objects do not — nothing in Postgres

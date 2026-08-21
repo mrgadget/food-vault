@@ -3,9 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { HelloFreshImport } from "./hellofresh-import";
 import { readJobStream } from "@/lib/job-stream";
 
-type Tab = "url" | "photos";
+type Tab = "url" | "photos" | "hellofresh";
 type Shot = { file: File; kind: "front" | "back" | "other"; preview: string };
 
 export default function ImportPage() {
@@ -22,10 +23,15 @@ export default function ImportPage() {
         <TabButton active={tab === "photos"} onClick={() => setTab("photos")}>
           From photos
         </TabButton>
+        <TabButton active={tab === "hellofresh"} onClick={() => setTab("hellofresh")}>
+          HelloFresh
+        </TabButton>
       </div>
 
       <div className="mt-8 rounded-card border border-line bg-surface p-6 shadow-sm">
-        {tab === "url" ? <UrlImport /> : <PhotoImport />}
+        {tab === "url" && <UrlImport />}
+        {tab === "photos" && <PhotoImport />}
+        {tab === "hellofresh" && <HelloFreshImport />}
       </div>
     </div>
   );
